@@ -1,0 +1,98 @@
+# Claude Code Vision - Default Configuration
+# This file shows all available configuration options with their default values
+# User config location: ~/.config/claude-code-vision/config.yaml
+
+version: "1.0"
+
+# Screenshot capture settings
+screenshot:
+  # Tool selection: "auto" (detect best), "scrot" (X11), "grim" (Wayland), "import" (ImageMagick)
+  tool: "auto"
+
+  # Image format: "jpeg", "png", or "webp"
+  format: "jpeg"
+
+  # JPEG quality (0-100, only applies to jpeg format)
+  quality: 85
+
+  # Maximum file size in MB (screenshots larger than this will be optimized)
+  max_size_mb: 2.0
+
+# Multi-monitor settings
+monitors:
+  # Default monitor for capture (0 = primary)
+  default: 0
+
+# Area selection settings
+area_selection:
+  # Tool for interactive area selection: "auto", "slurp" (Wayland), "slop" (X11)
+  tool: "auto"
+
+  # Show coordinates during selection
+  show_coordinates: true
+
+# Privacy and security settings
+privacy:
+  # Enable privacy zone redaction
+  enabled: true
+
+  # Prompt user on first screenshot (privacy warning)
+  prompt_first_use: true
+
+  # Privacy zones to redact (black out) before sending to Claude
+  # Format: name, x, y, width, height, monitor (optional)
+  zones: []
+  # Example privacy zone configuration:
+  # - name: "Top bar notifications"
+  #   x: 0
+  #   y: 0
+  #   width: 1920
+  #   height: 30
+  #   monitor: 0
+
+# Auto-monitoring mode settings
+monitoring:
+  # Capture interval in seconds (how often to take screenshots)
+  interval_seconds: 30
+
+  # Maximum monitoring duration in minutes (auto-stop after this time)
+  max_duration_minutes: 30
+
+  # Idle detection: pause monitoring after N minutes of no activity
+  idle_pause_minutes: 5
+
+  # Only send screenshots when changes detected (saves API calls)
+  change_detection: true
+
+# Claude Code integration settings
+claude_code:
+  # Path to Claude Code OAuth token file
+  oauth_token_path: "~/.claude/config.json"
+
+  # Anthropic API endpoint
+  api_endpoint: "https://api.anthropic.com/v1/messages"
+
+# Temporary file management
+temp:
+  # Directory for temporary screenshot files
+  directory: "/tmp/claude-vision"
+
+  # Automatically cleanup temp files after transmission
+  cleanup: true
+
+  # Keep temp files when errors occur (for debugging)
+  keep_on_error: false
+
+# Logging settings
+logging:
+  # Log level: "DEBUG", "INFO", "WARNING", "ERROR"
+  level: "INFO"
+
+  # Log file path
+  file: "~/.config/claude-code-vision/vision.log"
+
+  # Maximum log file size in MB
+  max_size_mb: 10
+
+  # Number of backup log files to keep
+  backup_count: 3
