@@ -162,6 +162,7 @@ privacy:
 - 📊 **[Data Model](specs/002-claude-code-vision/data-model.md)** - Entity definitions
 - 🔌 **[API Contracts](specs/002-claude-code-vision/contracts/)** - Interface specifications
 - 📝 **[Changelog](CHANGELOG.md)** - Recent updates and release notes
+- ✅ **[Production Smoke Test](PRODUCTION_SMOKE_TEST.md)** - Deployment validation and rollback
 
 ## Architecture
 
