@@ -53,7 +53,7 @@ class GeminiAPIClient(IClaudeAPIClient):
 
         logger.debug(f"GeminiAPIClient initialized: model={model_name}")
 
-    def send_multimodal_prompt(self, text: str, screenshot: Screenshot) -> str:  # noqa: PLR0912
+    def send_multimodal_prompt(self, text: str, screenshot: Screenshot) -> str:  # noqa: PLR0912, PLR0915
         """
         Send text + image prompt to Gemini API.
 
@@ -167,11 +167,13 @@ class GeminiAPIClient(IClaudeAPIClient):
         except genai.types.generation_types.BlockedPromptException as e:
             raise APIError(f"Prompt blocked by safety filters: {e}") from e
         except Exception as e:
-            if "API_KEY_INVALID" in str(e) or "invalid API key" in str(e).lower():
+            message = str(e)
+            message_lower = message.lower()
+            if "API_KEY_INVALID" in message or "invalid api key" in message_lower:
                 raise AuthenticationError("Invalid or expired Gemini API key") from e
-            if "quota" in str(e).lower():
+            if "quota" in message_lower:
                 raise APIError(f"API quota exceeded: {e}") from e
-            if "not found" in str(e).lower():
+            if "not found" in message_lower:
                 raise APIError(f"Model not found: {self.model_name}") from e
             raise APIError(f"Gemini API request failed: {e}") from e
 
