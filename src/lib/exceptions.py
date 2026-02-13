@@ -6,6 +6,8 @@ All exceptions inherit from VisionError base class with comprehensive error mess
 and troubleshooting guidance.
 """
 
+from typing import Optional
+
 
 class VisionError(Exception):
     """
@@ -17,7 +19,7 @@ class VisionError(Exception):
     - Suggested fixes
     """
 
-    def __init__(self, message: str, troubleshooting: str = None):
+    def __init__(self, message: str, troubleshooting: Optional[str] = None) -> None:
         """
         Initialize VisionError.
 
@@ -48,7 +50,7 @@ class VisionError(Exception):
 class ScreenshotCaptureError(VisionError):
     """Screenshot capture failed."""
 
-    def __init__(self, message: str, troubleshooting: str = None):
+    def __init__(self, message: str, troubleshooting: Optional[str] = None) -> None:
         if troubleshooting is None:
             troubleshooting = (
                 "• Verify screenshot tool is installed:\n"
@@ -65,7 +67,9 @@ class ScreenshotCaptureError(VisionError):
 class DisplayNotAvailableError(VisionError):
     """No display available (headless environment)."""
 
-    def __init__(self, message: str = "No display available", troubleshooting: str = None):
+    def __init__(
+        self, message: str = "No display available", troubleshooting: Optional[str] = None
+    ) -> None:
         if troubleshooting is None:
             troubleshooting = (
                 "• Verify you're running in a graphical environment (not SSH without X forwarding)\n"
@@ -81,7 +85,7 @@ class DisplayNotAvailableError(VisionError):
 class MonitorNotFoundError(VisionError):
     """Specified monitor not found."""
 
-    def __init__(self, monitor_id: int, available_count: int):
+    def __init__(self, monitor_id: int, available_count: int) -> None:
         message = f"Monitor {monitor_id} not found. Available monitors: {available_count}"
         troubleshooting = (
             f"• List available monitors: claude-vision --list-monitors\n"
@@ -95,7 +99,7 @@ class MonitorNotFoundError(VisionError):
 class InvalidRegionError(VisionError):
     """Capture region out of bounds or invalid."""
 
-    def __init__(self, message: str, troubleshooting: str = None):
+    def __init__(self, message: str, troubleshooting: Optional[str] = None) -> None:
         if troubleshooting is None:
             troubleshooting = (
                 "• Verify region coordinates are within screen bounds\n"
@@ -111,7 +115,7 @@ class InvalidRegionError(VisionError):
 class ImageProcessingError(VisionError):
     """Image processing operation failed."""
 
-    def __init__(self, message: str, troubleshooting: str = None):
+    def __init__(self, message: str, troubleshooting: Optional[str] = None) -> None:
         if troubleshooting is None:
             troubleshooting = (
                 "• Verify PIL/Pillow is installed: pip install Pillow\n"
@@ -127,7 +131,7 @@ class ImageProcessingError(VisionError):
 class RegionSelectionCancelledError(VisionError):
     """User cancelled region selection."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         message = "Region selection cancelled by user"
         troubleshooting = (
             "• Region selection was cancelled\n"
@@ -141,7 +145,9 @@ class RegionSelectionCancelledError(VisionError):
 class SelectionToolNotFoundError(VisionError):
     """Graphical selection tool not installed."""
 
-    def __init__(self, message: str = "Graphical selection tool not found", troubleshooting: str = None):
+    def __init__(
+        self, message: str = "Graphical selection tool not found", troubleshooting: Optional[str] = None
+    ) -> None:
         if troubleshooting is None:
             troubleshooting = (
                 "• Install region selection tool:\n"
@@ -158,7 +164,7 @@ class SelectionToolNotFoundError(VisionError):
 class AuthenticationError(VisionError):
     """OAuth authentication failed."""
 
-    def __init__(self, message: str, troubleshooting: str = None):
+    def __init__(self, message: str, troubleshooting: Optional[str] = None) -> None:
         if troubleshooting is None:
             troubleshooting = (
                 "• Verify Claude Code OAuth token is valid\n"
@@ -173,7 +179,9 @@ class AuthenticationError(VisionError):
 class APIError(VisionError):
     """Claude API call failed."""
 
-    def __init__(self, message: str, status_code: int = None, troubleshooting: str = None):
+    def __init__(
+        self, message: str, status_code: Optional[int] = None, troubleshooting: Optional[str] = None
+    ) -> None:
         self.status_code = status_code
         if troubleshooting is None:
             troubleshooting = (
@@ -190,14 +198,14 @@ class APIError(VisionError):
 class PayloadTooLargeError(VisionError):
     """Screenshot payload exceeds API limits."""
 
-    def __init__(self, size_mb: float, limit_mb: float = 5.0):
+    def __init__(self, size_mb: float, limit_mb: float = 5.0) -> None:
         message = f"Screenshot too large: {size_mb:.2f} MB (limit: {limit_mb} MB)"
         troubleshooting = (
-            f"• Reduce screenshot quality in config (current may be too high)\n"
-            f"• Reduce max_size_mb in config to trigger more aggressive compression\n"
-            f"• Use /vision.area to capture smaller region instead of full screen\n"
-            f"• Lower screen resolution if possible\n"
-            f"• Edit config: claude-vision --validate-config"
+            "• Reduce screenshot quality in config (current may be too high)\n"
+            "• Reduce max_size_mb in config to trigger more aggressive compression\n"
+            "• Use /vision.area to capture smaller region instead of full screen\n"
+            "• Lower screen resolution if possible\n"
+            "• Edit config: claude-vision --validate-config"
         )
         super().__init__(message, troubleshooting)
 
@@ -205,7 +213,7 @@ class PayloadTooLargeError(VisionError):
 class OAuthConfigNotFoundError(VisionError):
     """Claude Code OAuth config not found."""
 
-    def __init__(self, message: str = None, troubleshooting: str = None):
+    def __init__(self, message: Optional[str] = None, troubleshooting: Optional[str] = None) -> None:
         if message is None:
             message = "Claude Code OAuth configuration not found"
         if troubleshooting is None:
@@ -223,7 +231,7 @@ class OAuthConfigNotFoundError(VisionError):
 class ConfigurationError(VisionError):
     """Configuration invalid or load/save failed."""
 
-    def __init__(self, message: str, troubleshooting: str = None):
+    def __init__(self, message: str, troubleshooting: Optional[str] = None) -> None:
         if troubleshooting is None:
             troubleshooting = (
                 "• Validate config: claude-vision --validate-config\n"
@@ -239,7 +247,7 @@ class ConfigurationError(VisionError):
 class SessionAlreadyActiveError(VisionError):
     """Monitoring session already active."""
 
-    def __init__(self, session_id: str = None):
+    def __init__(self, session_id: Optional[str] = None) -> None:
         message = f"Monitoring session already active{f': {session_id}' if session_id else ''}"
         troubleshooting = (
             "• Stop current session: /vision.stop\n"
@@ -253,7 +261,7 @@ class SessionAlreadyActiveError(VisionError):
 class SessionNotFoundError(VisionError):
     """Monitoring session not found."""
 
-    def __init__(self, session_id: str = None):
+    def __init__(self, session_id: Optional[str] = None) -> None:
         message = f"Monitoring session not found{f': {session_id}' if session_id else ''}"
         troubleshooting = (
             "• No active monitoring session to stop\n"
@@ -268,7 +276,7 @@ class SessionNotFoundError(VisionError):
 class TempFileError(VisionError):
     """Temporary file operation failed."""
 
-    def __init__(self, message: str, troubleshooting: str = None):
+    def __init__(self, message: str, troubleshooting: Optional[str] = None) -> None:
         if troubleshooting is None:
             troubleshooting = (
                 "• Check disk space: df -h\n"
@@ -284,7 +292,7 @@ class TempFileError(VisionError):
 class VisionCommandError(VisionError):
     """High-level command execution failed."""
 
-    def __init__(self, message: str, troubleshooting: str = None):
+    def __init__(self, message: str, troubleshooting: Optional[str] = None) -> None:
         if troubleshooting is None:
             troubleshooting = (
                 "• Run diagnostics: claude-vision --doctor\n"
