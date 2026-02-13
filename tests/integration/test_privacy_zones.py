@@ -4,28 +4,29 @@ Integration tests for privacy zone redaction.
 Tests the complete workflow of privacy zone application in screenshots.
 """
 
-import pytest
-from pathlib import Path
-from PIL import Image
+from datetime import UTC, datetime
 from uuid import uuid4
-from datetime import datetime
 
-from src.models.entities import Screenshot, PrivacyZone
+import pytest
+from PIL import Image
+
+from src.models.entities import CaptureRegion, Configuration, PrivacyZone, Screenshot
+from src.services.config_manager import ConfigurationManager
 from src.services.image_processor import PillowImageProcessor
 from src.services.temp_file_manager import TempFileManager
-from src.lib.exceptions import ImageProcessingError
+from src.services.vision_service import VisionService
 
 
 class TestPrivacyZoneRedaction:
     """Integration tests for privacy zone redaction workflow."""
 
-    @pytest.fixture
+    @pytest.fixture()
     def image_processor(self, tmp_path):
         """Create PillowImageProcessor instance."""
         temp_manager = TempFileManager(temp_dir=str(tmp_path / "temp"))
         return PillowImageProcessor(temp_manager)
 
-    @pytest.fixture
+    @pytest.fixture()
     def test_screenshot(self, tmp_path):
         """Create a test screenshot with identifiable content."""
         # Create a colorful test image
@@ -53,7 +54,7 @@ class TestPrivacyZoneRedaction:
 
         return Screenshot(
             id=uuid4(),
-            timestamp=datetime.now(),
+            timestamp=datetime.now(tz=UTC),
             file_path=img_path,
             format="jpeg",
             original_size_bytes=img_path.stat().st_size,
@@ -196,13 +197,13 @@ class TestPrivacyZoneRedaction:
 class TestPrivacyZoneValidation:
     """Integration tests for privacy zone validation during application."""
 
-    @pytest.fixture
+    @pytest.fixture()
     def image_processor(self, tmp_path):
         """Create PillowImageProcessor instance."""
         temp_manager = TempFileManager(temp_dir=str(tmp_path / "temp"))
         return PillowImageProcessor(temp_manager)
 
-    @pytest.fixture
+    @pytest.fixture()
     def simple_screenshot(self, tmp_path):
         """Create a simple test screenshot."""
         img = Image.new('RGB', (400, 300), color='blue')
@@ -211,7 +212,7 @@ class TestPrivacyZoneValidation:
 
         return Screenshot(
             id=uuid4(),
-            timestamp=datetime.now(),
+            timestamp=datetime.now(tz=UTC),
             file_path=img_path,
             format="jpeg",
             original_size_bytes=img_path.stat().st_size,
@@ -246,13 +247,13 @@ class TestPrivacyZoneValidation:
 class TestPrivacyZoneMetadata:
     """Integration tests for privacy zone metadata handling."""
 
-    @pytest.fixture
+    @pytest.fixture()
     def image_processor(self, tmp_path):
         """Create PillowImageProcessor instance."""
         temp_manager = TempFileManager(temp_dir=str(tmp_path / "temp"))
         return PillowImageProcessor(temp_manager)
 
-    @pytest.fixture
+    @pytest.fixture()
     def test_screenshot(self, tmp_path):
         """Create test screenshot."""
         img = Image.new('RGB', (200, 200), color='white')
@@ -261,7 +262,7 @@ class TestPrivacyZoneMetadata:
 
         return Screenshot(
             id=uuid4(),
-            timestamp=datetime.now(),
+            timestamp=datetime.now(tz=UTC),
             file_path=img_path,
             format="jpeg",
             original_size_bytes=img_path.stat().st_size,
@@ -298,14 +299,106 @@ class TestPrivacyZoneMetadata:
         assert processed.source_monitor == original_monitor
 
 
-@pytest.mark.skip(reason="Requires full implementation")
 class TestPrivacyZoneWithVisionWorkflow:
     """Integration tests for privacy zones in complete vision workflow."""
 
-    def test_privacy_zones_applied_before_transmission(self):
-        """Test that privacy zones are applied before sending to API."""
-        pytest.skip("Requires VisionService implementation")
+    @pytest.fixture()
+    def vision_service(self, mocker):
+        config = Configuration()
+        config.privacy.enabled = True
+        config.privacy.prompt_first_use = False
+        config.privacy.zones = [
+            PrivacyZone(name="secret", x=10, y=10, width=40, height=40, monitor=0)
+        ]
 
-    def test_privacy_zones_with_area_capture(self):
-        """Test privacy zones work with /vision.area command."""
-        pytest.skip("Requires full /vision.area implementation")
+        config_manager = mocker.Mock(spec=ConfigurationManager)
+        config_manager.load_config.return_value = config
+
+        temp_manager = mocker.Mock()
+        capture = mocker.Mock()
+        processor = mocker.Mock()
+        api_client = mocker.Mock()
+
+        screenshot = Screenshot(
+            id=uuid4(),
+            timestamp=datetime.now(tz=UTC),
+            file_path=mocker.Mock(),
+            format="jpeg",
+            original_size_bytes=1024,
+            optimized_size_bytes=800,
+            resolution=(800, 600),
+            source_monitor=0,
+            capture_method="test",
+            privacy_zones_applied=False,
+        )
+
+        capture.capture_full_screen.return_value = screenshot
+        capture.capture_region.return_value = screenshot
+        processor.apply_privacy_zones.return_value = screenshot
+        processor.optimize_image.return_value = screenshot
+        api_client.send_multimodal_prompt.return_value = "ok"
+
+        service = VisionService(
+            config_manager=config_manager,
+            temp_manager=temp_manager,
+            capture=capture,
+            processor=processor,
+            api_client=api_client,
+            region_selector=mocker.Mock(),
+        )
+        return service, processor, api_client
+
+    def test_privacy_zones_applied_before_transmission(self, vision_service):
+        """Privacy redaction should happen before API transmission in /vision."""
+        service, processor, api_client = vision_service
+        order = []
+
+        def _privacy_step(*args):
+            order.append("privacy")
+            return args[0]
+
+        def _optimize_step(*args):
+            order.append("optimize")
+            return args[0]
+
+        def _send_step(*_args):
+            order.append("send")
+            return "ok"
+
+        processor.apply_privacy_zones.side_effect = _privacy_step
+        processor.optimize_image.side_effect = _optimize_step
+        api_client.send_multimodal_prompt.side_effect = _send_step
+
+        result = service.execute_vision_command("analyze")
+
+        assert result == "ok"
+        assert "privacy" in order
+        assert "send" in order
+        assert order.index("privacy") < order.index("send")
+
+    def test_privacy_zones_with_area_capture(self, vision_service):
+        """Privacy redaction should also apply for /vision.area workflow."""
+        service, processor, api_client = vision_service
+        order = []
+        region = CaptureRegion(x=5, y=5, width=120, height=80, monitor=0, selection_method="coordinates")
+
+        def _privacy_step(*args):
+            order.append("privacy")
+            return args[0]
+
+        def _optimize_step(*args):
+            order.append("optimize")
+            return args[0]
+
+        def _send_step(*_args):
+            order.append("send")
+            return "ok"
+
+        processor.apply_privacy_zones.side_effect = _privacy_step
+        processor.optimize_image.side_effect = _optimize_step
+        api_client.send_multimodal_prompt.side_effect = _send_step
+
+        result = service.execute_vision_area_command("analyze area", region=region)
+
+        assert result == "ok"
+        assert order.index("privacy") < order.index("send")
