@@ -8,7 +8,7 @@ from click.testing import CliRunner
 from src.lib.exceptions import SessionAlreadyActiveError, VisionCommandError
 
 
-@pytest.fixture
+@pytest.fixture()
 def cli_runner() -> CliRunner:
     return CliRunner()
 

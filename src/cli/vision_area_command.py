@@ -88,7 +88,8 @@ def vision_area(  # noqa: PLR0912, PLR0915
     """
     try:
         # Get VisionService from context
-        vision_service: VisionService = ctx.obj.get('vision_service')
+        ctx_obj = ctx.obj or {}
+        vision_service: Optional[VisionService] = ctx_obj.get('vision_service')
 
         if vision_service is None:
             click.echo(click.style("Error: Vision service not initialized", fg='red'))

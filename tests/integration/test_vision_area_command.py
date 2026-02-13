@@ -1,258 +1,157 @@
-"""
-Integration tests for /vision.area command.
-
-Tests the complete end-to-end workflow for region-based screenshot capture.
-"""
+"""Integration tests for /vision.area command with mocked service boundary."""
 
 import pytest
 from click.testing import CliRunner
 
 from src.lib.exceptions import (
-    VisionCommandError,
     InvalidRegionError,
-    RegionSelectionCancelledError
+    RegionSelectionCancelledError,
+    SelectionToolNotFoundError,
+    VisionCommandError,
 )
+from src.models.entities import CaptureRegion
 
 
-class TestVisionAreaCommandGraphical:
-    """
-    Integration tests for /vision.area command with graphical selection.
-    """
-
-    @pytest.fixture
-    def cli_runner(self):
-        """Create Click CLI test runner."""
-        return CliRunner()
-
-    def test_vision_area_graphical_selection(self, cli_runner):
-        """Test /vision.area with graphical region selection."""
-        try:
-            from src.cli.vision_area_command import vision_area
-        except ImportError:
-            pytest.skip("CLI command not yet implemented")
-
-        # This test requires user interaction or mocking
-        pytest.skip("Graphical selection requires user interaction")
-
-    def test_vision_area_graphical_on_specific_monitor(self, cli_runner):
-        """Test /vision.area with monitor selection."""
-        pytest.skip("Graphical selection requires user interaction")
-
-    def test_vision_area_user_cancels_selection(self, cli_runner):
-        """Test /vision.area when user cancels region selection."""
-        pytest.skip("Graphical selection requires user interaction")
-
-    def test_vision_area_selection_tool_not_found(self, cli_runner):
-        """Test /vision.area when selection tool (slurp/slop) not available."""
-        pytest.skip("Requires mocking tool detection")
+@pytest.fixture()
+def cli_runner() -> CliRunner:
+    return CliRunner()
 
 
-class TestVisionAreaCommandCoordinates:
-    """
-    Integration tests for /vision.area command with coordinate input.
-    """
-
-    @pytest.fixture
-    def cli_runner(self):
-        """Create Click CLI test runner."""
-        return CliRunner()
-
-    def test_vision_area_with_coords_flag(self, cli_runner):
-        """Test /vision.area --coords with coordinate input."""
-        try:
-            from src.cli.vision_area_command import vision_area
-        except ImportError:
-            pytest.skip("CLI command not yet implemented")
-
-        # Execute with coordinates
-        result = cli_runner.invoke(vision_area, [
-            '--coords', '100,100,400,300',
-            'What is in this region?'
-        ])
-
-        if result.exit_code != 0 and 'not implemented' in str(result.output).lower():
-            pytest.skip("Vision area command not yet fully implemented")
-
-    def test_vision_area_coords_parsing(self, cli_runner):
-        """Test coordinate string parsing (x,y,width,height)."""
-        try:
-            from src.cli.vision_area_command import vision_area
-        except ImportError:
-            pytest.skip("CLI command not yet implemented")
-
-        # Test various coordinate formats
-        test_cases = [
-            '0,0,800,600',
-            '100,100,500,400',
-            '1920,0,1920,1080',  # Second monitor
-        ]
-
-        for coords in test_cases:
-            result = cli_runner.invoke(vision_area, [
-                '--coords', coords,
-                'Test prompt'
-            ])
-
-            if result.exit_code != 0 and 'not implemented' in str(result.output).lower():
-                pytest.skip("Vision area command not yet fully implemented")
-
-    def test_vision_area_invalid_coords_format(self, cli_runner):
-        """Test error handling for invalid coordinate format."""
-        try:
-            from src.cli.vision_area_command import vision_area
-        except ImportError:
-            pytest.skip("CLI command not yet implemented")
-
-        # Invalid formats
-        invalid_cases = [
-            '100,100',  # Missing width,height
-            '100,100,400',  # Missing height
-            'abc,def,ghi,jkl',  # Non-numeric
-            '100',  # Too few values
-        ]
-
-        for coords in invalid_cases:
-            result = cli_runner.invoke(vision_area, [
-                '--coords', coords,
-                'Test prompt'
-            ])
-
-            # Should fail with error
-            assert result.exit_code != 0
-
-    def test_vision_area_negative_coordinates(self, cli_runner):
-        """Test error handling for negative coordinates."""
-        try:
-            from src.cli.vision_area_command import vision_area
-        except ImportError:
-            pytest.skip("CLI command not yet implemented")
-
-        result = cli_runner.invoke(vision_area, [
-            '--coords', '-100,-100,400,300',
-            'Test prompt'
-        ])
-
-        # Should fail with error
-        assert result.exit_code != 0
-
-    def test_vision_area_zero_dimensions(self, cli_runner):
-        """Test error handling for zero width/height."""
-        try:
-            from src.cli.vision_area_command import vision_area
-        except ImportError:
-            pytest.skip("CLI command not yet implemented")
-
-        result = cli_runner.invoke(vision_area, [
-            '--coords', '100,100,0,0',
-            'Test prompt'
-        ])
-
-        # Should fail with error
-        assert result.exit_code != 0
-
-    def test_vision_area_with_monitor_flag(self, cli_runner):
-        """Test /vision.area with --monitor flag."""
-        try:
-            from src.cli.vision_area_command import vision_area
-        except ImportError:
-            pytest.skip("CLI command not yet implemented")
-
-        result = cli_runner.invoke(vision_area, [
-            '--coords', '0,0,800,600',
-            '--monitor', '1',
-            'Test prompt'
-        ])
-
-        if result.exit_code != 0 and 'not implemented' in str(result.output).lower():
-            pytest.skip("Vision area command not yet fully implemented")
+@pytest.fixture()
+def mocked_service(mocker):
+    service = mocker.Mock()
+    service.execute_vision_area_command.return_value = "Area response"
+    return service
 
 
-class TestVisionAreaCommandWorkflow:
-    """
-    Integration tests for /vision.area workflow.
-    """
+def test_vision_area_requires_service_when_context_missing(cli_runner: CliRunner) -> None:
+    from src.cli.vision_area_command import vision_area
 
-    @pytest.fixture
-    def cli_runner(self):
-        """Create Click CLI test runner."""
-        return CliRunner()
+    result = cli_runner.invoke(vision_area, ["Prompt"])
 
-    def test_vision_area_complete_workflow_with_coords(self, cli_runner):
-        """Test complete workflow with coordinate-based selection."""
-        pytest.skip("Requires full implementation and mocking")
-
-    def test_vision_area_privacy_zones_applied(self, cli_runner):
-        """Test that privacy zones are applied to region screenshots."""
-        pytest.skip("Requires full implementation and mocking")
-
-    def test_vision_area_image_optimization(self, cli_runner):
-        """Test that region screenshots are optimized."""
-        pytest.skip("Requires full implementation and mocking")
-
-    def test_vision_area_temp_file_cleanup(self, cli_runner):
-        """Test that temp files are cleaned up after region capture."""
-        pytest.skip("Requires full implementation and mocking")
+    assert result.exit_code != 0
+    assert "Vision service not initialized" in result.output
 
 
-class TestVisionAreaCommandFallback:
-    """
-    Integration tests for /vision.area fallback behavior.
-    """
+def test_vision_area_with_coords_calls_service(cli_runner: CliRunner, mocked_service, mocker) -> None:
+    from src.cli.vision_area_command import vision_area
 
-    @pytest.fixture
-    def cli_runner(self):
-        """Create Click CLI test runner."""
-        return CliRunner()
+    mocker.patch("src.cli.vision_area_command.click.echo")
+    result = cli_runner.invoke(
+        vision_area,
+        ["--coords", "100,120,400,300", "--monitor", "1", "What is here?"],
+        obj={"vision_service": mocked_service},
+    )
 
-    def test_vision_area_graphical_fails_falls_back_to_coords(self, cli_runner):
-        """Test fallback to coordinate input when graphical selection fails."""
-        pytest.skip("Requires implementation of fallback logic")
-
-    def test_vision_area_no_tool_prompts_for_coords(self, cli_runner):
-        """Test prompting for coordinates when no selection tool available."""
-        pytest.skip("Requires implementation of fallback logic")
-
-
-class TestVisionAreaCommandErrorMessages:
-    """
-    Tests for actionable error messages (FR-017).
-    """
-
-    @pytest.fixture
-    def cli_runner(self):
-        """Create Click CLI test runner."""
-        return CliRunner()
-
-    def test_error_message_invalid_coordinates(self, cli_runner):
-        """Test error message for invalid coordinates."""
-        pytest.skip("Requires full implementation")
-
-    def test_error_message_region_out_of_bounds(self, cli_runner):
-        """Test error message for region exceeding screen bounds."""
-        pytest.skip("Requires full implementation")
-
-    def test_error_message_selection_cancelled(self, cli_runner):
-        """Test error message when user cancels selection."""
-        pytest.skip("Requires full implementation")
-
-    def test_error_message_selection_tool_missing(self, cli_runner):
-        """Test error message when selection tool not installed."""
-        pytest.skip("Requires full implementation")
+    assert result.exit_code == 0
+    call = mocked_service.execute_vision_area_command.call_args
+    assert call.kwargs["prompt"] == "What is here?"
+    region = call.kwargs["region"]
+    assert isinstance(region, CaptureRegion)
+    assert (region.x, region.y, region.width, region.height, region.monitor) == (100, 120, 400, 300, 1)
+    assert region.selection_method == "coordinates"
 
 
-class TestVisionAreaCommandWithMocks:
-    """
-    Integration tests using mocked components.
-    """
+@pytest.mark.parametrize("bad_coords", ["100,100", "x,y,w,h", "100,100,0", "100"])
+def test_vision_area_invalid_coords_are_rejected(
+    cli_runner: CliRunner, mocked_service, bad_coords: str
+) -> None:
+    from src.cli.vision_area_command import vision_area
 
-    def test_vision_area_with_mocked_service(self):
-        """Test /vision.area with mocked VisionService."""
-        pytest.skip("Requires implementation and mocking")
+    result = cli_runner.invoke(
+        vision_area,
+        ["--coords", bad_coords, "Prompt"],
+        obj={"vision_service": mocked_service},
+    )
 
-    def test_vision_area_error_handling_with_mocks(self):
-        """Test error handling with mocked failures."""
-        pytest.skip("Requires implementation and mocking")
+    assert result.exit_code != 0
+    assert "Invalid coordinates format" in result.output
+    mocked_service.execute_vision_area_command.assert_not_called()
 
 
-# NOTE: These tests are written BEFORE implementation (Test-First Development)
-# Many tests are currently skipped and will be enabled as implementation progresses.
+def test_vision_area_without_coords_passes_none_region(
+    cli_runner: CliRunner, mocked_service
+) -> None:
+    from src.cli.vision_area_command import vision_area
+
+    result = cli_runner.invoke(
+        vision_area,
+        ["Prompt"],
+        obj={"vision_service": mocked_service},
+    )
+
+    assert result.exit_code == 0
+    mocked_service.execute_vision_area_command.assert_called_once_with(prompt="Prompt", region=None)
+
+
+def test_vision_area_fallback_to_manual_coords_when_selection_fails(
+    cli_runner: CliRunner, mocked_service, mocker
+) -> None:
+    from src.cli.vision_area_command import vision_area
+
+    mocked_service.execute_vision_area_command.side_effect = [
+        SelectionToolNotFoundError("slurp not found"),
+        "Recovered by fallback",
+    ]
+    mocker.patch("src.cli.vision_area_command.click.confirm", return_value=True)
+    mocker.patch("src.cli.vision_area_command.click.prompt", return_value="10,20,300,200")
+
+    result = cli_runner.invoke(
+        vision_area,
+        ["Prompt"],
+        obj={"vision_service": mocked_service},
+    )
+
+    assert result.exit_code == 0
+    assert mocked_service.execute_vision_area_command.call_count == 2
+    retry_region = mocked_service.execute_vision_area_command.call_args_list[1].kwargs["region"]
+    assert isinstance(retry_region, CaptureRegion)
+    assert (retry_region.x, retry_region.y, retry_region.width, retry_region.height) == (10, 20, 300, 200)
+
+
+def test_vision_area_fallback_cancel_aborts(cli_runner: CliRunner, mocked_service, mocker) -> None:
+    from src.cli.vision_area_command import vision_area
+
+    mocked_service.execute_vision_area_command.side_effect = RegionSelectionCancelledError()
+    mocker.patch("src.cli.vision_area_command.click.confirm", return_value=False)
+
+    result = cli_runner.invoke(
+        vision_area,
+        ["Prompt"],
+        obj={"vision_service": mocked_service},
+    )
+
+    assert result.exit_code != 0
+    assert "Operation cancelled" in result.output
+
+
+def test_vision_area_vision_command_error_is_actionable(
+    cli_runner: CliRunner, mocked_service
+) -> None:
+    from src.cli.vision_area_command import vision_area
+
+    mocked_service.execute_vision_area_command.side_effect = VisionCommandError("bad workflow")
+    result = cli_runner.invoke(
+        vision_area,
+        ["Prompt"],
+        obj={"vision_service": mocked_service},
+    )
+
+    assert result.exit_code != 0
+    assert "Error: bad workflow" in result.output
+
+
+def test_vision_area_invalid_region_error_is_actionable(
+    cli_runner: CliRunner, mocked_service
+) -> None:
+    from src.cli.vision_area_command import vision_area
+
+    mocked_service.execute_vision_area_command.side_effect = InvalidRegionError("out of bounds")
+    result = cli_runner.invoke(
+        vision_area,
+        ["Prompt"],
+        obj={"vision_service": mocked_service},
+    )
+
+    assert result.exit_code != 0
+    assert "Invalid region" in result.output

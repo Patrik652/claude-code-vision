@@ -14,12 +14,12 @@ from src.lib.exceptions import (
 from src.models.entities import Configuration
 
 
-@pytest.fixture
+@pytest.fixture()
 def cli_runner() -> CliRunner:
     return CliRunner()
 
 
-@pytest.fixture
+@pytest.fixture()
 def mocked_service(mocker):
     service = mocker.Mock()
     service.execute_vision_command.return_value = "Mocked response"
