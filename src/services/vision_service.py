@@ -6,22 +6,22 @@ Composes all other services to implement user-facing commands.
 Implements IVisionService interface.
 """
 
-from uuid import UUID
 from typing import Optional
+from uuid import UUID
 
 from src.interfaces.screenshot_service import (
-    IVisionService,
-    IScreenshotCapture,
-    IImageProcessor,
     IClaudeAPIClient,
     IConfigurationManager,
-    ITempFileManager,
+    IImageProcessor,
     IMonitoringSessionManager,
-    IRegionSelector
+    IRegionSelector,
+    IScreenshotCapture,
+    ITempFileManager,
+    IVisionService,
 )
-from src.models.entities import CaptureRegion
-from src.lib.exceptions import VisionCommandError, SessionAlreadyActiveError
+from src.lib.exceptions import SessionAlreadyActiveError, VisionCommandError
 from src.lib.logging_config import get_logger
+from src.models.entities import CaptureRegion
 
 logger = get_logger(__name__)
 
@@ -90,7 +90,7 @@ class VisionService(IVisionService):
         if provider == 'gemini' and self.gemini_client:
             logger.info("Using Gemini API as primary provider")
             return self.gemini_client
-        elif provider == 'claude' and self.claude_client:
+        if provider == 'claude' and self.claude_client:
             logger.info("Using Claude API as primary provider")
             return self.claude_client
 
@@ -99,7 +99,7 @@ class VisionService(IVisionService):
             if provider == 'claude' and self.gemini_client:
                 logger.warning("Claude API not available, falling back to Gemini")
                 return self.gemini_client
-            elif provider == 'gemini' and self.claude_client:
+            if provider == 'gemini' and self.claude_client:
                 logger.warning("Gemini API not available, falling back to Claude")
                 return self.claude_client
 
@@ -218,7 +218,7 @@ class VisionService(IVisionService):
 
         except Exception as e:
             logger.error(f"Vision command failed: {e}")
-            raise VisionCommandError(f"Failed to execute vision command: {e}")
+            raise VisionCommandError(f"Failed to execute vision command: {e}") from e
 
     def execute_vision_area_command(self, prompt: str, region: Optional[CaptureRegion] = None) -> str:
         """
@@ -294,7 +294,7 @@ class VisionService(IVisionService):
 
         except Exception as e:
             logger.error(f"Vision area command failed: {e}")
-            raise VisionCommandError(f"Failed to execute vision area command: {e}")
+            raise VisionCommandError(f"Failed to execute vision area command: {e}") from e
 
     def execute_vision_auto_command(self, interval_seconds: Optional[int] = None) -> UUID:
         """
@@ -339,11 +339,11 @@ class VisionService(IVisionService):
             logger.info(f"Monitoring session started: {session.id}")
             return session.id
 
-        except SessionAlreadyActiveError:
-            raise VisionCommandError("A monitoring session is already active. Stop it first with /vision.stop")
+        except SessionAlreadyActiveError as e:
+            raise VisionCommandError("A monitoring session is already active. Stop it first with /vision.stop") from e
         except Exception as e:
             logger.error(f"Failed to start monitoring session: {e}")
-            raise VisionCommandError(f"Failed to start monitoring session: {e}")
+            raise VisionCommandError(f"Failed to start monitoring session: {e}") from e
 
     def execute_vision_stop_command(self) -> None:
         """
@@ -377,4 +377,4 @@ class VisionService(IVisionService):
 
         except Exception as e:
             logger.error(f"Failed to stop monitoring session: {e}")
-            raise VisionCommandError(f"Failed to stop monitoring session: {e}")
+            raise VisionCommandError(f"Failed to stop monitoring session: {e}") from e

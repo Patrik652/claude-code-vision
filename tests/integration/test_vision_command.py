@@ -19,6 +19,12 @@ from src.lib.exceptions import (
 )
 
 
+@pytest.fixture
+def cli_runner():
+    """Shared Click CLI runner fixture for module-level tests."""
+    return CliRunner()
+
+
 class TestVisionCommandIntegration:
     """
     Integration tests for /vision command end-to-end workflow.
@@ -31,11 +37,6 @@ class TestVisionCommandIntegration:
     5. Response handling
     6. Temp file cleanup
     """
-
-    @pytest.fixture
-    def cli_runner(self):
-        """Create Click CLI test runner."""
-        return CliRunner()
 
     @pytest.fixture
     def mock_config(self):
@@ -189,11 +190,6 @@ class TestVisionCommandErrorMessages:
 
     Verifies that error messages are helpful and guide users to solutions.
     """
-
-    @pytest.fixture
-    def cli_runner(self):
-        """Create Click CLI test runner."""
-        return CliRunner()
 
     def test_error_message_display_not_available(self, cli_runner):
         """Test error message when display is not available."""

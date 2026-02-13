@@ -4,12 +4,14 @@
 Validates configuration file and reports any issues.
 """
 
-import click
 from pathlib import Path
+from typing import Optional
 
-from src.services.config_manager import ConfigurationManager
+import click
+
 from src.lib.exceptions import ConfigurationError
 from src.lib.logging_config import get_logger
+from src.services.config_manager import ConfigurationManager
 
 logger = get_logger(__name__)
 
@@ -22,7 +24,7 @@ logger = get_logger(__name__)
     help='Path to config file (default: ~/.config/claude-code-vision/config.yaml)'
 )
 @click.pass_context
-def validate_config(ctx, path: str):
+def validate_config(_ctx: click.Context, path: Optional[str]) -> None:  # noqa: PLR0912, PLR0915
     """
     Validate configuration file.
 
@@ -44,18 +46,15 @@ def validate_config(ctx, path: str):
 
     try:
         # Determine config path
-        if path:
-            config_path = Path(path).expanduser().absolute()
-        else:
-            config_path = ConfigurationManager.DEFAULT_CONFIG_PATH
+        config_path = Path(path).expanduser().absolute() if path else ConfigurationManager.DEFAULT_CONFIG_PATH
 
         click.echo(f"Validating: {click.style(str(config_path), fg='cyan')}\n")
 
         # Check if file exists
         if not config_path.exists():
-            click.echo(click.style(f"✗ Configuration file not found", fg='red', bold=True))
+            click.echo(click.style("✗ Configuration file not found", fg='red', bold=True))
             click.echo(f"\nExpected location: {config_path}")
-            click.echo(click.style(f"\nCreate config with: claude-vision --init", fg='yellow'))
+            click.echo(click.style("\nCreate config with: claude-vision --init", fg='yellow'))
             raise click.Abort()
 
         # Load and validate configuration
@@ -69,29 +68,29 @@ def validate_config(ctx, path: str):
             config_manager.validate_config(config)
             click.echo(click.style("✓ Configuration is valid!", fg='green', bold=True))
         except ConfigurationError as e:
-            click.echo(click.style(f"✗ Validation failed:", fg='red', bold=True))
+            click.echo(click.style("✗ Validation failed:", fg='red', bold=True))
             click.echo(click.style(str(e), fg='red'))
-            raise click.Abort()
+            raise click.Abort() from e
 
         # Display configuration details
         click.echo("\n" + "="*80)
         click.echo(click.style("Configuration Details:", fg='cyan', bold=True))
         click.echo("="*80)
 
-        click.echo(f"\n📸 Screenshot:")
+        click.echo("\n📸 Screenshot:")
         click.echo(f"  Format: {config.screenshot.format}")
         click.echo(f"  Quality: {config.screenshot.quality}")
         click.echo(f"  Max size: {config.screenshot.max_size_mb} MB")
         click.echo(f"  Tool: {config.screenshot.tool}")
 
-        click.echo(f"\n🖥️  Monitors:")
+        click.echo("\n🖥️  Monitors:")
         click.echo(f"  Default: {config.monitors.default}")
 
-        click.echo(f"\n📐 Area Selection:")
+        click.echo("\n📐 Area Selection:")
         click.echo(f"  Tool: {config.area_selection.tool}")
         click.echo(f"  Show coordinates: {config.area_selection.show_coordinates}")
 
-        click.echo(f"\n🔒 Privacy:")
+        click.echo("\n🔒 Privacy:")
         click.echo(f"  Enabled: {config.privacy.enabled}")
         click.echo(f"  First-use prompt: {config.privacy.prompt_first_use}")
         click.echo(f"  Privacy zones: {len(config.privacy.zones)}")
@@ -99,18 +98,18 @@ def validate_config(ctx, path: str):
             for i, zone in enumerate(config.privacy.zones, 1):
                 click.echo(f"    {i}. {zone.name}: ({zone.x},{zone.y}) {zone.width}x{zone.height}")
 
-        click.echo(f"\n🔄 Monitoring:")
+        click.echo("\n🔄 Monitoring:")
         click.echo(f"  Interval: {config.monitoring.interval_seconds} seconds")
         click.echo(f"  Max duration: {config.monitoring.max_duration_minutes} minutes")
         click.echo(f"  Idle pause: {config.monitoring.idle_pause_minutes} minutes")
         click.echo(f"  Change detection: {config.monitoring.change_detection}")
 
-        click.echo(f"\n📁 Temp Files:")
+        click.echo("\n📁 Temp Files:")
         click.echo(f"  Directory: {config.temp.directory}")
         click.echo(f"  Cleanup: {config.temp.cleanup}")
         click.echo(f"  Keep on error: {config.temp.keep_on_error}")
 
-        click.echo(f"\n📝 Logging:")
+        click.echo("\n📝 Logging:")
         click.echo(f"  Level: {config.logging.level}")
         click.echo(f"  File: {config.logging.file}")
         click.echo(f"  Max size: {config.logging.max_size_mb} MB")
@@ -153,9 +152,9 @@ def validate_config(ctx, path: str):
 
     except ConfigurationError as e:
         click.echo(click.style(f"\n❌ Configuration error: {e}", fg='red'))
-        raise click.Abort()
+        raise click.Abort() from e
 
     except Exception as e:
         logger.error(f"Unexpected error validating config: {e}", exc_info=True)
         click.echo(click.style(f"\n❌ Unexpected error: {e}", fg='red'))
-        raise click.Abort()
+        raise click.Abort() from e

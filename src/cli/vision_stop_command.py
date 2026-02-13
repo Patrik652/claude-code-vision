@@ -6,16 +6,16 @@ Handles stopping active auto-monitoring sessions.
 
 import click
 
-from src.services.vision_service import VisionService
 from src.lib.exceptions import VisionCommandError
 from src.lib.logging_config import get_logger
+from src.services.vision_service import VisionService
 
 logger = get_logger(__name__)
 
 
 @click.command(name='stop')
 @click.pass_context
-def vision_stop(ctx):
+def vision_stop(ctx: click.Context) -> None:
     """
     Stop the active auto-monitoring session.
 
@@ -60,9 +60,9 @@ def vision_stop(ctx):
             click.echo("\n" + click.style("Start a new session with:", fg='cyan'))
             click.echo(click.style("  /vision.auto", fg='cyan'))
 
-        raise click.Abort()
+        raise click.Abort() from e
 
     except Exception as e:
         logger.error(f"Unexpected error in /vision.stop command: {e}", exc_info=True)
         click.echo(click.style(f"\n❌ Unexpected error: {e}", fg='red'))
-        raise click.Abort()
+        raise click.Abort() from e

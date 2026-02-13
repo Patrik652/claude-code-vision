@@ -6,16 +6,11 @@ Implements IRegionSelector interface.
 """
 
 import subprocess
-from typing import List
 
 from src.interfaces.screenshot_service import IRegionSelector
-from src.models.entities import CaptureRegion
-from src.lib.exceptions import (
-    RegionSelectionCancelledError,
-    SelectionToolNotFoundError,
-    InvalidRegionError
-)
+from src.lib.exceptions import InvalidRegionError, RegionSelectionCancelledError, SelectionToolNotFoundError
 from src.lib.logging_config import get_logger
+from src.models.entities import CaptureRegion
 
 logger = get_logger(__name__)
 
@@ -27,7 +22,7 @@ class SlurpRegionSelector(IRegionSelector):
     Requires slurp to be installed on the system.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize SlurpRegionSelector."""
         # Verify slurp is available
         if not self._check_slurp_available():
@@ -71,13 +66,13 @@ class SlurpRegionSelector(IRegionSelector):
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=60  # Wait up to 60 seconds for user selection
+                timeout=60, check=False  # Wait up to 60 seconds for user selection
             )
 
             # Check if user cancelled (exit code 1)
             if result.returncode == 1:
                 logger.info("User cancelled region selection")
-                raise RegionSelectionCancelledError("Region selection was cancelled by user")
+                raise RegionSelectionCancelledError()
 
             # Check for other errors
             if result.returncode != 0:
@@ -96,10 +91,10 @@ class SlurpRegionSelector(IRegionSelector):
 
         except subprocess.TimeoutExpired:
             logger.warning("Region selection timed out")
-            raise RegionSelectionCancelledError("Region selection timed out")
+            raise RegionSelectionCancelledError() from None
 
         except FileNotFoundError:
-            raise SelectionToolNotFoundError("slurp command not found")
+            raise SelectionToolNotFoundError("slurp command not found") from None
 
         except Exception as e:
             logger.error(f"Region selection failed: {e}")
@@ -121,7 +116,6 @@ class SlurpRegionSelector(IRegionSelector):
         """
         try:
             # Expected format: "X,Y WxH"
-            # Example: "100,200 400x300"
             parts = output.split()
 
             if len(parts) != 2:
@@ -144,7 +138,7 @@ class SlurpRegionSelector(IRegionSelector):
             height = int(dims[1])
 
             # Create CaptureRegion
-            region = CaptureRegion(
+            return CaptureRegion(
                 x=x,
                 y=y,
                 width=width,
@@ -153,10 +147,9 @@ class SlurpRegionSelector(IRegionSelector):
                 selection_method='graphical'
             )
 
-            return region
 
         except (ValueError, IndexError) as e:
-            raise InvalidRegionError(f"Failed to parse slurp output '{output}': {e}")
+            raise InvalidRegionError(f"Failed to parse slurp output '{output}': {e}") from e
 
     def select_region_coordinates(
         self,

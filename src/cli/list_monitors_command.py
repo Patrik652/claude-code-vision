@@ -5,19 +5,20 @@ Implements the --list-monitors command to display available monitors.
 """
 
 import sys
+
 import click
 
-from src.services.config_manager import ConfigurationManager
-from src.services.temp_file_manager import TempFileManager
-from src.services.screenshot_capture.factory import ScreenshotCaptureFactory
 from src.lib.exceptions import VisionCommandError
-from src.lib.logging_config import setup_logging, get_logger
+from src.lib.logging_config import get_logger, setup_logging
+from src.services.config_manager import ConfigurationManager
+from src.services.screenshot_capture.factory import ScreenshotCaptureFactory
+from src.services.temp_file_manager import TempFileManager
 
 logger = get_logger(__name__)
 
 
 @click.command()
-def list_monitors():
+def list_monitors() -> None:
     """
     List all available monitors with their details.
 

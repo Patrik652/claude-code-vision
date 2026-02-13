@@ -5,27 +5,25 @@ Manages auto-monitoring sessions with background capture loops.
 Implements IMonitoringSessionManager interface.
 """
 
+import shutil
+import subprocess
 import threading
 import time
+from datetime import datetime, timezone
+from typing import Callable, Optional
 from uuid import UUID, uuid4
-from datetime import datetime, timedelta
-from typing import Optional
 
 from src.interfaces.screenshot_service import (
-    IMonitoringSessionManager,
-    IScreenshotCapture,
-    IImageProcessor,
     IClaudeAPIClient,
     IConfigurationManager,
-    ITempFileManager
+    IImageProcessor,
+    IMonitoringSessionManager,
+    IScreenshotCapture,
+    ITempFileManager,
 )
-from src.models.entities import MonitoringSession, Screenshot
-from src.lib.exceptions import (
-    SessionAlreadyActiveError,
-    SessionNotFoundError,
-    VisionCommandError
-)
+from src.lib.exceptions import SessionAlreadyActiveError, SessionNotFoundError
 from src.lib.logging_config import get_logger
+from src.models.entities import MonitoringSession
 
 logger = get_logger(__name__)
 
@@ -49,7 +47,8 @@ class MonitoringSessionManager(IMonitoringSessionManager):
         temp_manager: ITempFileManager,
         capture: IScreenshotCapture,
         processor: IImageProcessor,
-        api_client: IClaudeAPIClient
+        api_client: IClaudeAPIClient,
+        idle_seconds_provider: Optional[Callable[[], Optional[float]]] = None
     ):
         """
         Initialize MonitoringSessionManager.
@@ -60,6 +59,7 @@ class MonitoringSessionManager(IMonitoringSessionManager):
             capture: Screenshot capture implementation
             processor: Image processor
             api_client: Claude API client
+            idle_seconds_provider: Optional idle detector callback for testability
         """
         self.config_manager = config_manager
         self.temp_manager = temp_manager
@@ -71,6 +71,7 @@ class MonitoringSessionManager(IMonitoringSessionManager):
         self._capture_thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
         self._lock = threading.Lock()
+        self._idle_seconds_provider = idle_seconds_provider or self._get_system_idle_seconds
 
         logger.info("MonitoringSessionManager initialized")
 
@@ -110,7 +111,7 @@ class MonitoringSessionManager(IMonitoringSessionManager):
             # Create new session
             session = MonitoringSession(
                 id=uuid4(),
-                started_at=datetime.now(),
+                started_at=datetime.now(timezone.utc),
                 interval_seconds=interval_seconds,
                 is_active=True,
                 capture_count=0,
@@ -184,7 +185,7 @@ class MonitoringSessionManager(IMonitoringSessionManager):
                 raise SessionNotFoundError(f"Session {session_id} not found")
 
             if self._active_session.paused_at is None:
-                self._active_session.paused_at = datetime.now()
+                self._active_session.paused_at = datetime.now(timezone.utc)
                 logger.info(f"Monitoring session paused: {session_id}")
             else:
                 logger.debug(f"Session {session_id} already paused")
@@ -232,7 +233,7 @@ class MonitoringSessionManager(IMonitoringSessionManager):
         idle_pause_minutes = config.monitoring.idle_pause_minutes
         change_detection_enabled = config.monitoring.change_detection
 
-        session_start = datetime.now()
+        session_start = datetime.now(timezone.utc)
 
         try:
             while not self._stop_event.is_set():
@@ -242,18 +243,18 @@ class MonitoringSessionManager(IMonitoringSessionManager):
 
                     # Check max duration
                     if max_duration_minutes > 0:
-                        elapsed = (datetime.now() - session_start).total_seconds() / 60
+                        elapsed = (datetime.now(timezone.utc) - session_start).total_seconds() / 60
                         if elapsed >= max_duration_minutes:
                             logger.info(
                                 f"Max duration reached ({max_duration_minutes} min), "
                                 "stopping session"
                             )
-                            session_id = self._active_session.id
                             self._active_session.is_active = False
                             self._stop_event.set()
                             break
 
                     # Check if paused
+                    self._maybe_update_idle_pause(idle_pause_minutes)
                     if self._active_session.paused_at is not None:
                         # Session is paused, skip capture
                         time.sleep(1)
@@ -286,25 +287,29 @@ class MonitoringSessionManager(IMonitoringSessionManager):
         """
         try:
             config = self.config_manager.load_config()
+            session = self._active_session
+            if session is None:
+                logger.debug("No active session available for capture; skipping")
+                return
 
             # Capture full screen
             logger.debug("Capturing screenshot for monitoring")
             screenshot = self.capture.capture_full_screen(monitor=config.monitors.default)
 
             # Check for changes if enabled
-            if change_detection_enabled and self._active_session.previous_screenshot_hash:
+            if change_detection_enabled and session.previous_screenshot_hash:
                 current_hash = self.processor.calculate_image_hash(screenshot)
 
-                if current_hash == self._active_session.previous_screenshot_hash:
+                if current_hash == session.previous_screenshot_hash:
                     logger.debug("No change detected, skipping transmission")
                     self.temp_manager.cleanup_temp_file(screenshot.file_path)
                     return
 
-                self._active_session.previous_screenshot_hash = current_hash
-                self._active_session.last_change_detected_at = datetime.now()
+                session.previous_screenshot_hash = current_hash
+                session.last_change_detected_at = datetime.now(timezone.utc)
             elif change_detection_enabled:
                 # First capture, store hash
-                self._active_session.previous_screenshot_hash = self.processor.calculate_image_hash(screenshot)
+                session.previous_screenshot_hash = self.processor.calculate_image_hash(screenshot)
 
             # Apply privacy zones if configured
             if config.privacy.enabled and config.privacy.zones:
@@ -314,17 +319,17 @@ class MonitoringSessionManager(IMonitoringSessionManager):
             screenshot = self.processor.optimize_image(screenshot, config.screenshot.max_size_mb)
 
             # Send to Claude API
-            prompt = f"[Auto-monitoring capture #{self._active_session.capture_count + 1}]"
+            prompt = f"[Auto-monitoring capture #{session.capture_count + 1}]"
             response = self.api_client.send_multimodal_prompt(prompt, screenshot)
 
             logger.info(
-                f"Auto-capture #{self._active_session.capture_count + 1} completed: "
+                f"Auto-capture #{session.capture_count + 1} completed: "
                 f"{len(response)} chars received"
             )
 
             # Update session stats
-            self._active_session.capture_count += 1
-            self._active_session.last_capture_at = datetime.now()
+            session.capture_count += 1
+            session.last_capture_at = datetime.now(timezone.utc)
 
             # Cleanup temp file
             self.temp_manager.cleanup_temp_file(screenshot.file_path)
@@ -332,3 +337,53 @@ class MonitoringSessionManager(IMonitoringSessionManager):
         except Exception as e:
             logger.error(f"Capture failed: {e}", exc_info=True)
             raise
+
+    def _maybe_update_idle_pause(self, idle_pause_minutes: int) -> None:
+        """
+        Pause/resume session based on system idle time.
+
+        Args:
+            idle_pause_minutes: Idle timeout in minutes (<=0 disables idle pause)
+        """
+        if idle_pause_minutes <= 0 or self._active_session is None:
+            return
+
+        idle_seconds = self._idle_seconds_provider()
+        if idle_seconds is None:
+            return
+
+        idle_threshold_seconds = idle_pause_minutes * 60
+        is_paused = self._active_session.paused_at is not None
+
+        if idle_seconds >= idle_threshold_seconds and not is_paused:
+            self._active_session.paused_at = datetime.now(timezone.utc)
+            logger.info(
+                "Monitoring session auto-paused due to idle timeout "
+                f"({idle_pause_minutes} min)"
+            )
+        elif idle_seconds < idle_threshold_seconds and is_paused:
+            self._active_session.paused_at = None
+            logger.info("Monitoring session auto-resumed after activity detected")
+
+    def _get_system_idle_seconds(self) -> Optional[float]:
+        """
+        Get system idle time in seconds.
+
+        Returns:
+            Idle duration in seconds, or None when unavailable.
+        """
+        # xprintidle is the most reliable lightweight option on X11.
+        if not shutil.which("xprintidle"):
+            return None
+
+        try:
+            result = subprocess.run(
+                ["xprintidle"],
+                capture_output=True,
+                text=True,
+                timeout=2,
+                check=True
+            )
+            return float(result.stdout.strip()) / 1000.0
+        except (subprocess.SubprocessError, ValueError):
+            return None

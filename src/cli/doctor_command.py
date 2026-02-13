@@ -4,22 +4,23 @@
 Diagnostic tool to verify Claude Code Vision setup and dependencies.
 """
 
-import click
 import shutil
 import sys
 from pathlib import Path
 
-from src.services.config_manager import ConfigurationManager
+import click
+
 from src.lib.desktop_detector import detect_desktop_type
-from src.lib.tool_detector import get_preferred_tool
 from src.lib.logging_config import get_logger
+from src.lib.tool_detector import get_preferred_tool
+from src.services.config_manager import ConfigurationManager
 
 logger = get_logger(__name__)
 
 
 @click.command(name='doctor')
 @click.pass_context
-def doctor(ctx):
+def doctor(_ctx: click.Context) -> None:  # noqa: PLR0912, PLR0915
     """
     Run diagnostics on Claude Code Vision setup.
 
@@ -60,13 +61,13 @@ def doctor(ctx):
             config_manager = ConfigurationManager()
             config = config_manager.load_config()
             config_manager.validate_config(config)
-            click.echo(click.style(f"   ✓ Config is valid", fg='green'))
+            click.echo(click.style("   ✓ Config is valid", fg='green'))
         except Exception as e:
             click.echo(click.style(f"   ✗ Config validation failed: {e}", fg='red'))
             all_checks_passed = False
     else:
         click.echo(click.style(f"   ⚠️  Config not found: {config_path}", fg='yellow'))
-        click.echo(click.style(f"   → Run: claude-vision --init", fg='yellow'))
+        click.echo(click.style("   → Run: claude-vision --init", fg='yellow'))
         all_checks_passed = False
     click.echo()
 
@@ -92,8 +93,8 @@ def doctor(ctx):
         if tool:
             click.echo(click.style(f"   ✓ Available: {tool.value}", fg='green'))
         else:
-            click.echo(click.style(f"   ✗ No screenshot tool found", fg='red'))
-            click.echo(click.style(f"   → Install: scrot (X11) or grim (Wayland)", fg='yellow'))
+            click.echo(click.style("   ✗ No screenshot tool found", fg='red'))
+            click.echo(click.style("   → Install: scrot (X11) or grim (Wayland)", fg='yellow'))
             all_checks_passed = False
     except Exception as e:
         click.echo(click.style(f"   ✗ Detection failed: {e}", fg='red'))
@@ -104,19 +105,19 @@ def doctor(ctx):
     click.echo(click.style("5. Region Selection Tools", fg='cyan', bold=True))
     has_selector = False
     if shutil.which('slurp'):
-        click.echo(click.style(f"   ✓ slurp (Wayland)", fg='green'))
+        click.echo(click.style("   ✓ slurp (Wayland)", fg='green'))
         has_selector = True
     if shutil.which('xrectsel'):
-        click.echo(click.style(f"   ✓ xrectsel (X11)", fg='green'))
+        click.echo(click.style("   ✓ xrectsel (X11)", fg='green'))
         has_selector = True
     if shutil.which('slop'):
-        click.echo(click.style(f"   ✓ slop (X11)", fg='green'))
+        click.echo(click.style("   ✓ slop (X11)", fg='green'))
         has_selector = True
 
     if not has_selector:
-        click.echo(click.style(f"   ⚠️  No region selector found (optional)", fg='yellow'))
-        click.echo(click.style(f"   → Install: slop (X11) or slurp (Wayland)", fg='yellow'))
-        click.echo(click.style(f"   → You can still use --coords for area selection", fg='yellow'))
+        click.echo(click.style("   ⚠️  No region selector found (optional)", fg='yellow'))
+        click.echo(click.style("   → Install: slop (X11) or slurp (Wayland)", fg='yellow'))
+        click.echo(click.style("   → You can still use --coords for area selection", fg='yellow'))
     click.echo()
 
     # Check 6: Dependencies

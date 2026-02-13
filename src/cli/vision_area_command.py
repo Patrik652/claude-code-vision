@@ -4,23 +4,24 @@
 Handles area-based screenshot capture with optional coordinate specification.
 """
 
-import click
-from typing import Optional
+from typing import Optional, Tuple
 
-from src.services.vision_service import VisionService
-from src.models.entities import CaptureRegion
+import click
+
 from src.lib.exceptions import (
-    VisionCommandError,
+    InvalidRegionError,
     RegionSelectionCancelledError,
     SelectionToolNotFoundError,
-    InvalidRegionError
+    VisionCommandError,
 )
 from src.lib.logging_config import get_logger
+from src.models.entities import CaptureRegion
+from src.services.vision_service import VisionService
 
 logger = get_logger(__name__)
 
 
-def parse_coordinates(coords_str: str) -> tuple[int, int, int, int]:
+def parse_coordinates(coords_str: str) -> Tuple[int, int, int, int]:
     """
     Parse coordinate string to tuple.
 
@@ -42,7 +43,7 @@ def parse_coordinates(coords_str: str) -> tuple[int, int, int, int]:
         return (x, y, width, height)
 
     except ValueError as e:
-        raise ValueError(f"Invalid coordinates format: {e}")
+        raise ValueError(f"Invalid coordinates format: {e}") from e
 
 
 @click.command(name='area')
@@ -59,7 +60,12 @@ def parse_coordinates(coords_str: str) -> tuple[int, int, int, int]:
     help='Monitor index to capture from (default: 0 = primary)'
 )
 @click.pass_context
-def vision_area(ctx, prompt: str, coords: Optional[str], monitor: int):
+def vision_area(  # noqa: PLR0912, PLR0915
+    ctx: click.Context,
+    prompt: str,
+    coords: Optional[str],
+    monitor: int
+) -> None:
     """
     Capture a specific screen region and analyze with Claude.
 
@@ -105,7 +111,7 @@ def vision_area(ctx, prompt: str, coords: Optional[str], monitor: int):
 
             except ValueError as e:
                 click.echo(click.style(f"Error: {e}", fg='red'))
-                raise click.Abort()
+                raise click.Abort() from e
 
         # Execute vision area command
         click.echo("Analyzing screen region...")
@@ -162,10 +168,10 @@ def vision_area(ctx, prompt: str, coords: Optional[str], monitor: int):
 
                     except ValueError as parse_error:
                         click.echo(click.style(f"\nError: {parse_error}", fg='red'))
-                        raise click.Abort()
+                        raise click.Abort() from e
                 else:
                     click.echo(click.style("Operation cancelled", fg='yellow'))
-                    raise click.Abort()
+                    raise click.Abort() from e
             else:
                 # User provided coords but still failed - re-raise
                 raise
@@ -174,19 +180,19 @@ def vision_area(ctx, prompt: str, coords: Optional[str], monitor: int):
         # This is now handled above in the fallback logic
         pass
 
-    except SelectionToolNotFoundError as e:
+    except SelectionToolNotFoundError:
         # This is now handled above in the fallback logic
         pass
 
     except InvalidRegionError as e:
         click.echo(click.style(f"\nError: Invalid region - {e}", fg='red'))
-        raise click.Abort()
+        raise click.Abort() from e
 
     except VisionCommandError as e:
         click.echo(click.style(f"\nError: {e}", fg='red'))
-        raise click.Abort()
+        raise click.Abort() from e
 
     except Exception as e:
         logger.error(f"Unexpected error in /vision.area command: {e}", exc_info=True)
         click.echo(click.style(f"\nUnexpected error: {e}", fg='red'))
-        raise click.Abort()
+        raise click.Abort() from e

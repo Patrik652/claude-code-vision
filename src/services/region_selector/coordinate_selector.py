@@ -6,9 +6,9 @@ Implements IRegionSelector interface.
 """
 
 from src.interfaces.screenshot_service import IRegionSelector
-from src.models.entities import CaptureRegion
 from src.lib.exceptions import InvalidRegionError
 from src.lib.logging_config import get_logger
+from src.models.entities import CaptureRegion
 
 logger = get_logger(__name__)
 
@@ -21,7 +21,7 @@ class CoordinateRegionSelector(IRegionSelector):
     Used as a fallback when graphical selection is not available.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize CoordinateRegionSelector."""
         logger.debug("CoordinateRegionSelector initialized")
 

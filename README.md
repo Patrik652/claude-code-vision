@@ -53,7 +53,7 @@ sudo pacman -S grim slurp --noconfirm
 
 ```bash
 # Clone repository
-git clone https://github.com/YOUR_USERNAME/claude-code-vision.git
+git clone https://github.com/Patrik652/claude-code-vision.git
 cd claude-code-vision
 
 # Install with pip
@@ -216,9 +216,8 @@ MIT License - See LICENSE file for details
 
 ## Support
 
-- 🐛 **Issues**: [GitHub Issues](https://github.com/YOUR_USERNAME/claude-code-vision/issues)
-- 💬 **Discussions**: [GitHub Discussions](https://github.com/YOUR_USERNAME/claude-code-vision/discussions)
-- 📧 **Contact**: your-email@example.com
+- 🐛 **Issues**: [GitHub Issues](https://github.com/Patrik652/claude-code-vision/issues)
+- 💬 **Discussions**: [GitHub Discussions](https://github.com/Patrik652/claude-code-vision/discussions)
 
 ## Roadmap
 

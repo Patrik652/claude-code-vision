@@ -6,13 +6,13 @@ Auto-selects the appropriate screenshot capture implementation based on:
 2. Available screenshot tools (scrot, grim, import)
 """
 
-from typing import Optional
+from typing import Any, Callable, List, Optional
 
 from src.interfaces.screenshot_service import IScreenshotCapture
 from src.lib.desktop_detector import DesktopDetector, DesktopType
-from src.lib.tool_detector import ToolDetector, ScreenshotTool
 from src.lib.exceptions import ScreenshotCaptureError
 from src.lib.logging_config import get_logger
+from src.lib.tool_detector import ScreenshotTool, ToolDetector
 from src.services.temp_file_manager import TempFileManager
 
 logger = get_logger(__name__)
@@ -121,6 +121,7 @@ class ScreenshotCaptureFactory:
         Raises:
             ScreenshotCaptureError: If implementation cannot be created
         """
+        _ = desktop_type
         try:
             if tool == ScreenshotTool.SCROT:
                 from src.services.screenshot_capture.x11_capture import X11ScreenshotCapture
@@ -131,7 +132,7 @@ class ScreenshotCaptureFactory:
                     quality=quality
                 )
 
-            elif tool == ScreenshotTool.GRIM:
+            if tool == ScreenshotTool.GRIM:
                 from src.services.screenshot_capture.wayland_capture import WaylandScreenshotCapture
                 logger.info("Creating WaylandScreenshotCapture (grim)")
                 return WaylandScreenshotCapture(
@@ -140,7 +141,7 @@ class ScreenshotCaptureFactory:
                     quality=quality
                 )
 
-            elif tool == ScreenshotTool.IMPORT:
+            if tool == ScreenshotTool.IMPORT:
                 from src.services.screenshot_capture.imagemagick_capture import ImageMagickScreenshotCapture
                 logger.info("Creating ImageMagickScreenshotCapture (import)")
                 return ImageMagickScreenshotCapture(
@@ -149,14 +150,15 @@ class ScreenshotCaptureFactory:
                     quality=quality
                 )
 
-            else:
-                raise ScreenshotCaptureError(f"Unsupported screenshot tool: {tool}")
+            raise ScreenshotCaptureError(f"Unsupported screenshot tool: {tool}")
 
         except ImportError as e:
-            raise ScreenshotCaptureError(f"Failed to import screenshot capture implementation: {e}")
+            raise ScreenshotCaptureError(
+                f"Failed to import screenshot capture implementation: {e}"
+            ) from e
 
     @staticmethod
-    def get_available_tools() -> list[ScreenshotTool]:
+    def get_available_tools() -> List[ScreenshotTool]:
         """
         Get list of available screenshot tools.
 
@@ -178,9 +180,9 @@ class ScreenshotCaptureFactory:
 
     @staticmethod
     def create_for_testing(
-        implementation_class,
+        implementation_class: Callable[..., IScreenshotCapture],
         temp_manager: Optional[TempFileManager] = None,
-        **kwargs
+        **kwargs: Any
     ) -> IScreenshotCapture:
         """
         Create a specific implementation for testing purposes.

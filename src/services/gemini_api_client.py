@@ -10,23 +10,16 @@ Handles communication with Gemini API including:
 Implements IClaudeAPIClient interface for compatibility.
 """
 
-import json
-import base64
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 import google.generativeai as genai
-from google.generativeai.types import HarmCategory, HarmBlockThreshold
+from google.generativeai.types import HarmBlockThreshold, HarmCategory
 
 from src.interfaces.screenshot_service import IClaudeAPIClient
-from src.models.entities import Screenshot
-from src.lib.exceptions import (
-    AuthenticationError,
-    APIError,
-    PayloadTooLargeError,
-    OAuthConfigNotFoundError
-)
+from src.lib.exceptions import APIError, AuthenticationError, OAuthConfigNotFoundError, PayloadTooLargeError
 from src.lib.logging_config import get_logger
+from src.models.entities import Screenshot
 
 logger = get_logger(__name__)
 
@@ -60,7 +53,7 @@ class GeminiAPIClient(IClaudeAPIClient):
 
         logger.debug(f"GeminiAPIClient initialized: model={model_name}")
 
-    def send_multimodal_prompt(self, text: str, screenshot: Screenshot) -> str:
+    def send_multimodal_prompt(self, text: str, screenshot: Screenshot) -> str:  # noqa: PLR0912
         """
         Send text + image prompt to Gemini API.
 
@@ -128,13 +121,16 @@ class GeminiAPIClient(IClaudeAPIClient):
             }
 
             # Construct prompt with image
-            prompt_parts = [image_part]
+            prompt_parts: List[object] = [image_part]
             if text:
                 prompt_parts.append(text)
 
             logger.debug(f"Sending request to Gemini API with model {self.model_name}")
 
             # Send request
+            if self._model is None:
+                raise APIError("Gemini model initialization failed")
+
             response = self._model.generate_content(
                 prompt_parts,
                 generation_config={
@@ -167,18 +163,17 @@ class GeminiAPIClient(IClaudeAPIClient):
             raise APIError("No text content in Gemini API response")
 
         except genai.types.generation_types.StopCandidateException as e:
-            raise APIError(f"Content generation stopped: {e}")
+            raise APIError(f"Content generation stopped: {e}") from e
         except genai.types.generation_types.BlockedPromptException as e:
-            raise APIError(f"Prompt blocked by safety filters: {e}")
+            raise APIError(f"Prompt blocked by safety filters: {e}") from e
         except Exception as e:
             if "API_KEY_INVALID" in str(e) or "invalid API key" in str(e).lower():
-                raise AuthenticationError("Invalid or expired Gemini API key")
-            elif "quota" in str(e).lower():
-                raise APIError(f"API quota exceeded: {e}")
-            elif "not found" in str(e).lower():
-                raise APIError(f"Model not found: {self.model_name}")
-            else:
-                raise APIError(f"Gemini API request failed: {e}")
+                raise AuthenticationError("Invalid or expired Gemini API key") from e
+            if "quota" in str(e).lower():
+                raise APIError(f"API quota exceeded: {e}") from e
+            if "not found" in str(e).lower():
+                raise APIError(f"Model not found: {self.model_name}") from e
+            raise APIError(f"Gemini API request failed: {e}") from e
 
     def validate_oauth_token(self) -> bool:
         """
@@ -251,7 +246,7 @@ class GeminiAPIClient(IClaudeAPIClient):
             import yaml
 
             if self.DEFAULT_CONFIG_PATH.exists():
-                with open(self.DEFAULT_CONFIG_PATH, 'r') as f:
+                with open(self.DEFAULT_CONFIG_PATH) as f:
                     config = yaml.safe_load(f)
 
                 # Look for gemini API key in config

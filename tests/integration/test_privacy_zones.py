@@ -12,6 +12,7 @@ from datetime import datetime
 
 from src.models.entities import Screenshot, PrivacyZone
 from src.services.image_processor import PillowImageProcessor
+from src.services.temp_file_manager import TempFileManager
 from src.lib.exceptions import ImageProcessingError
 
 
@@ -19,9 +20,10 @@ class TestPrivacyZoneRedaction:
     """Integration tests for privacy zone redaction workflow."""
 
     @pytest.fixture
-    def image_processor(self):
+    def image_processor(self, tmp_path):
         """Create PillowImageProcessor instance."""
-        return PillowImageProcessor()
+        temp_manager = TempFileManager(temp_dir=str(tmp_path / "temp"))
+        return PillowImageProcessor(temp_manager)
 
     @pytest.fixture
     def test_screenshot(self, tmp_path):
@@ -195,9 +197,10 @@ class TestPrivacyZoneValidation:
     """Integration tests for privacy zone validation during application."""
 
     @pytest.fixture
-    def image_processor(self):
+    def image_processor(self, tmp_path):
         """Create PillowImageProcessor instance."""
-        return PillowImageProcessor()
+        temp_manager = TempFileManager(temp_dir=str(tmp_path / "temp"))
+        return PillowImageProcessor(temp_manager)
 
     @pytest.fixture
     def simple_screenshot(self, tmp_path):
@@ -244,9 +247,10 @@ class TestPrivacyZoneMetadata:
     """Integration tests for privacy zone metadata handling."""
 
     @pytest.fixture
-    def image_processor(self):
+    def image_processor(self, tmp_path):
         """Create PillowImageProcessor instance."""
-        return PillowImageProcessor()
+        temp_manager = TempFileManager(temp_dir=str(tmp_path / "temp"))
+        return PillowImageProcessor(temp_manager)
 
     @pytest.fixture
     def test_screenshot(self, tmp_path):

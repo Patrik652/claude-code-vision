@@ -7,20 +7,20 @@ Implements IScreenshotCapture interface.
 """
 
 import subprocess
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any, Dict, List, Tuple
 from uuid import uuid4
-from datetime import datetime
-from typing import List
 
 from src.interfaces.screenshot_service import IScreenshotCapture
-from src.models.entities import Screenshot, CaptureRegion
 from src.lib.exceptions import (
-    ScreenshotCaptureError,
     DisplayNotAvailableError,
+    InvalidRegionError,
     MonitorNotFoundError,
-    InvalidRegionError
+    ScreenshotCaptureError,
 )
 from src.lib.logging_config import get_logger
+from src.models.entities import CaptureRegion, Screenshot
 from src.services.temp_file_manager import TempFileManager
 
 logger = get_logger(__name__)
@@ -94,7 +94,7 @@ class ImageMagickScreenshotCapture(IScreenshotCapture):
         # Verify monitor exists
         monitors = self.detect_monitors()
         if monitor >= len(monitors):
-            raise MonitorNotFoundError(f"Monitor {monitor} not found. Available monitors: {len(monitors)}")
+            raise MonitorNotFoundError(monitor, len(monitors))
 
         # Create temp file
         extension = 'jpg' if self.image_format in ['jpg', 'jpeg'] else self.image_format
@@ -118,7 +118,7 @@ class ImageMagickScreenshotCapture(IScreenshotCapture):
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=10
+                timeout=10, check=False
             )
 
             if result.returncode != 0:
@@ -133,7 +133,7 @@ class ImageMagickScreenshotCapture(IScreenshotCapture):
             # Create Screenshot object
             screenshot = Screenshot(
                 id=uuid4(),
-                timestamp=datetime.now(),
+                timestamp=datetime.now(timezone.utc),
                 file_path=temp_path,
                 format=self.image_format,
                 original_size_bytes=file_size,
@@ -151,12 +151,12 @@ class ImageMagickScreenshotCapture(IScreenshotCapture):
         except subprocess.TimeoutExpired:
             # Cleanup temp file
             self.temp_manager.cleanup_temp_file(temp_path)
-            raise ScreenshotCaptureError("Screenshot capture timed out")
+            raise ScreenshotCaptureError("Screenshot capture timed out") from None
 
         except Exception as e:
             # Cleanup temp file
             self.temp_manager.cleanup_temp_file(temp_path)
-            raise ScreenshotCaptureError(f"Failed to capture screenshot: {e}")
+            raise ScreenshotCaptureError(f"Failed to capture screenshot: {e}") from e
 
     def capture_region(self, region: CaptureRegion) -> Screenshot:
         """
@@ -206,7 +206,6 @@ class ImageMagickScreenshotCapture(IScreenshotCapture):
             cmd.extend(['-window', 'root'])
 
             # Add crop parameter for region
-            # Format: WIDTHxHEIGHT+X+Y
             crop = f"{region.width}x{region.height}+{region.x}+{region.y}"
             cmd.extend(['-crop', crop])
 
@@ -221,7 +220,7 @@ class ImageMagickScreenshotCapture(IScreenshotCapture):
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=10
+                timeout=10, check=False
             )
 
             if result.returncode != 0:
@@ -233,7 +232,7 @@ class ImageMagickScreenshotCapture(IScreenshotCapture):
             # Create Screenshot object
             screenshot = Screenshot(
                 id=uuid4(),
-                timestamp=datetime.now(),
+                timestamp=datetime.now(timezone.utc),
                 file_path=temp_path,
                 format=self.image_format,
                 original_size_bytes=file_size,
@@ -250,11 +249,11 @@ class ImageMagickScreenshotCapture(IScreenshotCapture):
 
         except subprocess.TimeoutExpired:
             self.temp_manager.cleanup_temp_file(temp_path)
-            raise ScreenshotCaptureError("Region capture timed out")
+            raise ScreenshotCaptureError("Region capture timed out") from None
 
         except Exception as e:
             self.temp_manager.cleanup_temp_file(temp_path)
-            raise ScreenshotCaptureError(f"Failed to capture region: {e}")
+            raise ScreenshotCaptureError(f"Failed to capture region: {e}") from e
 
     def detect_monitors(self) -> List[dict]:
         """
@@ -279,7 +278,7 @@ class ImageMagickScreenshotCapture(IScreenshotCapture):
                     ['xrandr', '--query'],
                     capture_output=True,
                     text=True,
-                    timeout=5
+                    timeout=5, check=False
                 )
 
                 if result.returncode == 0:
@@ -298,7 +297,7 @@ class ImageMagickScreenshotCapture(IScreenshotCapture):
                     ['wlr-randr'],
                     capture_output=True,
                     text=True,
-                    timeout=5
+                    timeout=5, check=False
                 )
 
                 if result.returncode == 0:
@@ -347,11 +346,11 @@ class ImageMagickScreenshotCapture(IScreenshotCapture):
     def _parse_wlr_randr_output(self, output: str) -> List[dict]:
         """Parse wlr-randr output to extract monitor information."""
         monitors = []
-        current_monitor = {}
+        current_monitor: Dict[str, Any] = {}
         monitor_id = 0
 
-        for line in output.split('\n'):
-            line = line.strip()
+        for output_line in output.split('\n'):
+            line = output_line.strip()
 
             if line and not line.startswith(' ') and 'current' in line:
                 if current_monitor:
@@ -396,14 +395,14 @@ class ImageMagickScreenshotCapture(IScreenshotCapture):
             'is_primary': True
         }]
 
-    def _get_image_resolution(self, image_path: Path) -> tuple[int, int]:
+    def _get_image_resolution(self, image_path: Path) -> Tuple[int, int]:
         """Get image resolution using identify command (part of ImageMagick)."""
         try:
             result = subprocess.run(
                 ['identify', '-format', '%wx%h', str(image_path)],
                 capture_output=True,
                 text=True,
-                timeout=3
+                timeout=3, check=False
             )
 
             if result.returncode == 0:

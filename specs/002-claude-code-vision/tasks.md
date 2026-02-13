@@ -190,7 +190,7 @@
 - [x] T088 [US3] Implement get_active_session() for session state queries
 - [x] T089 [US3] Implement calculate_image_hash() in PillowImageProcessor for change detection (extend T029)
 - [x] T090 [US3] Implement change detection logic in MonitoringSessionManager
-- [ ] T091 [US3] Implement idle pause logic (5 minutes no interaction)
+- [x] T091 [US3] Implement idle pause logic (5 minutes no interaction)
 - [x] T092 [US3] Implement max duration auto-stop (30 minutes default)
 - [x] T093 [US3] Implement single session enforcement (only one active at a time)
 - [x] T094 [US3] Implement VisionService.execute_vision_auto_command() in `src/services/vision_service.py` (extend T034)
@@ -211,10 +211,10 @@
 
 - [x] T101 [P] Create `claude-vision --init` command to generate default config in `src/cli/init_command.py`
 - [x] T102 [P] Create `claude-vision --doctor` diagnostic command in `src/cli/doctor_command.py` (verify tools, OAuth, config)
-- [ ] T103 [P] Create `claude-vision --list-monitors` command in `src/cli/list_monitors_command.py`
-- [ ] T104 [P] Create `claude-vision --validate-config` command in `src/cli/validate_config_command.py`
-- [ ] T105 [P] Create `claude-vision --test-capture` command for screenshot tool testing in `src/cli/test_capture_command.py`
-- [ ] T106 Create main CLI entry point in `src/cli/main.py` aggregating all commands using click groups
+- [x] T103 [P] Create `claude-vision --list-monitors` command in `src/cli/list_monitors_command.py`
+- [x] T104 [P] Create `claude-vision --validate-config` command in `src/cli/validate_config_command.py`
+- [x] T105 [P] Create `claude-vision --test-capture` command for screenshot tool testing in `src/cli/test_capture_command.py`
+- [x] T106 Create main CLI entry point in `src/cli/main.py` aggregating all commands using click groups
 - [ ] T107 Implement multi-monitor support: detect monitors, support --monitor flag (FR-016)
 - [ ] T108 Add comprehensive error messages with troubleshooting steps for all exception types (FR-017)
 - [ ] T109 Optimize screenshot capture performance to meet <5 second SC-001 requirement
@@ -226,9 +226,9 @@
 - [ ] T115 [P] Add docstrings to all public methods and classes
 - [ ] T116 [P] Run mypy type checking across entire codebase and fix issues
 - [ ] T117 [P] Run black/ruff linting and format all code
-- [ ] T118 Create installation script `install.sh` for dependency management
-- [ ] T119 Create CONTRIBUTING.md with development setup instructions
-- [ ] T120 [P] Add GitHub Actions CI workflow (if using GitHub) for automated testing
+- [x] T118 Create installation script `install.sh` for dependency management
+- [x] T119 Create CONTRIBUTING.md with development setup instructions
+- [x] T120 [P] Add GitHub Actions CI workflow (if using GitHub) for automated testing
 - [ ] T121 Validate all quickstart.md scenarios work end-to-end
 - [ ] T122 Final integration testing: all commands work together without conflicts
 - [ ] T123 Performance profiling and optimization if needed

@@ -6,14 +6,14 @@ Implements IImageProcessor interface.
 """
 
 import hashlib
-from pathlib import Path
-from typing import List
+from typing import Any, Dict, List
+
 from PIL import Image, ImageDraw
 
 from src.interfaces.screenshot_service import IImageProcessor
-from src.models.entities import Screenshot, PrivacyZone
 from src.lib.exceptions import ImageProcessingError
 from src.lib.logging_config import get_logger
+from src.models.entities import PrivacyZone, Screenshot
 from src.services.temp_file_manager import TempFileManager
 
 logger = get_logger(__name__)
@@ -90,7 +90,7 @@ class PillowImageProcessor(IImageProcessor):
             new_path = self.temp_manager.create_temp_file(extension)
 
             # Save processed image
-            save_kwargs = {}
+            save_kwargs: Dict[str, Any] = {}
             if screenshot.format in ['jpg', 'jpeg']:
                 save_kwargs['quality'] = 85  # Use reasonable quality
                 save_kwargs['format'] = 'JPEG'
@@ -126,9 +126,9 @@ class PillowImageProcessor(IImageProcessor):
             return processed_screenshot
 
         except Exception as e:
-            raise ImageProcessingError(f"Failed to apply privacy zones: {e}")
+            raise ImageProcessingError(f"Failed to apply privacy zones: {e}") from e
 
-    def optimize_image(self, screenshot: Screenshot, max_size_mb: float = 2.0) -> Screenshot:
+    def optimize_image(self, screenshot: Screenshot, max_size_mb: float = 2.0) -> Screenshot:  # noqa: PLR0912, PLR0915
         """
         Optimize screenshot to meet size constraints.
 
@@ -184,7 +184,7 @@ class PillowImageProcessor(IImageProcessor):
                     logger.debug(f"Resized to {new_width}x{new_height} (factor={resize_factor:.2f})")
 
                 # Save with current settings
-                save_kwargs = {}
+                save_kwargs: Dict[str, Any] = {}
                 if screenshot.format in ['jpg', 'jpeg']:
                     save_kwargs['quality'] = quality
                     save_kwargs['format'] = 'JPEG'
@@ -246,7 +246,7 @@ class PillowImageProcessor(IImageProcessor):
             return optimized_screenshot
 
         except Exception as e:
-            raise ImageProcessingError(f"Failed to optimize image: {e}")
+            raise ImageProcessingError(f"Failed to optimize image: {e}") from e
 
     def calculate_image_hash(self, screenshot: Screenshot) -> str:
         """
@@ -280,4 +280,4 @@ class PillowImageProcessor(IImageProcessor):
             return hash_value
 
         except Exception as e:
-            raise ImageProcessingError(f"Failed to calculate image hash: {e}")
+            raise ImageProcessingError(f"Failed to calculate image hash: {e}") from e

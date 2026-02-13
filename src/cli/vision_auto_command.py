@@ -4,15 +4,13 @@
 Handles auto-monitoring session start with configurable intervals.
 """
 
-import click
 from typing import Optional
 
-from src.services.vision_service import VisionService
-from src.lib.exceptions import (
-    VisionCommandError,
-    SessionAlreadyActiveError
-)
+import click
+
+from src.lib.exceptions import SessionAlreadyActiveError, VisionCommandError
 from src.lib.logging_config import get_logger
+from src.services.vision_service import VisionService
 
 logger = get_logger(__name__)
 
@@ -31,7 +29,7 @@ logger = get_logger(__name__)
     help='Monitor index to capture from (default: 0 = primary)'
 )
 @click.pass_context
-def vision_auto(ctx, interval: Optional[int], monitor: int):
+def vision_auto(ctx: click.Context, interval: Optional[int], monitor: int) -> None:
     """
     Start auto-monitoring session with periodic screenshot capture.
 
@@ -78,7 +76,7 @@ def vision_auto(ctx, interval: Optional[int], monitor: int):
 
         # Display start message
         interval_text = f"{interval}s" if interval else "default"
-        click.echo(click.style(f"\n🚀 Starting auto-monitoring session...", fg='green', bold=True))
+        click.echo(click.style("\n🚀 Starting auto-monitoring session...", fg='green', bold=True))
         click.echo(f"Interval: {interval_text}")
         click.echo(f"Monitor: {monitor}")
 
@@ -86,7 +84,7 @@ def vision_auto(ctx, interval: Optional[int], monitor: int):
         session_id = vision_service.execute_vision_auto_command(interval_seconds=interval)
 
         # Display success message
-        click.echo(click.style(f"\n✓ Monitoring session started!", fg='green', bold=True))
+        click.echo(click.style("\n✓ Monitoring session started!", fg='green', bold=True))
         click.echo(f"Session ID: {session_id}")
         click.echo("\nThe session is now running in the background.")
         click.echo("Screenshots will be captured and analyzed automatically.")
@@ -96,17 +94,17 @@ def vision_auto(ctx, interval: Optional[int], monitor: int):
         click.echo("="*80 + "\n")
 
     except SessionAlreadyActiveError as e:
-        click.echo(click.style(f"\n❌ Cannot start monitoring session", fg='red', bold=True))
+        click.echo(click.style("\n❌ Cannot start monitoring session", fg='red', bold=True))
         click.echo(click.style(str(e), fg='yellow'))
         click.echo("\n" + click.style("Stop the active session first:", fg='cyan'))
         click.echo(click.style("  /vision.stop", fg='cyan'))
-        raise click.Abort()
+        raise click.Abort() from e
 
     except VisionCommandError as e:
         click.echo(click.style(f"\n❌ Error: {e}", fg='red'))
-        raise click.Abort()
+        raise click.Abort() from e
 
     except Exception as e:
         logger.error(f"Unexpected error in /vision.auto command: {e}", exc_info=True)
         click.echo(click.style(f"\n❌ Unexpected error: {e}", fg='red'))
-        raise click.Abort()
+        raise click.Abort() from e

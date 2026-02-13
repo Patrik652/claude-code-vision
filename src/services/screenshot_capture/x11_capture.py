@@ -6,20 +6,20 @@ Implements IScreenshotCapture interface.
 """
 
 import subprocess
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import List, Tuple
 from uuid import uuid4
-from datetime import datetime
-from typing import List
 
 from src.interfaces.screenshot_service import IScreenshotCapture
-from src.models.entities import Screenshot, CaptureRegion
 from src.lib.exceptions import (
-    ScreenshotCaptureError,
     DisplayNotAvailableError,
+    InvalidRegionError,
     MonitorNotFoundError,
-    InvalidRegionError
+    ScreenshotCaptureError,
 )
 from src.lib.logging_config import get_logger
+from src.models.entities import CaptureRegion, Screenshot
 from src.services.temp_file_manager import TempFileManager
 
 logger = get_logger(__name__)
@@ -89,7 +89,7 @@ class X11ScreenshotCapture(IScreenshotCapture):
         # Verify monitor exists
         monitors = self.detect_monitors()
         if monitor >= len(monitors):
-            raise MonitorNotFoundError(f"Monitor {monitor} not found. Available monitors: {len(monitors)}")
+            raise MonitorNotFoundError(monitor, len(monitors))
 
         # Create temp file
         extension = 'jpg' if self.image_format in ['jpg', 'jpeg'] else self.image_format
@@ -113,7 +113,7 @@ class X11ScreenshotCapture(IScreenshotCapture):
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=10
+                timeout=10, check=False
             )
 
             if result.returncode != 0:
@@ -128,7 +128,7 @@ class X11ScreenshotCapture(IScreenshotCapture):
             # Create Screenshot object
             screenshot = Screenshot(
                 id=uuid4(),
-                timestamp=datetime.now(),
+                timestamp=datetime.now(timezone.utc),
                 file_path=temp_path,
                 format=self.image_format,
                 original_size_bytes=file_size,
@@ -146,12 +146,12 @@ class X11ScreenshotCapture(IScreenshotCapture):
         except subprocess.TimeoutExpired:
             # Cleanup temp file
             self.temp_manager.cleanup_temp_file(temp_path)
-            raise ScreenshotCaptureError("Screenshot capture timed out")
+            raise ScreenshotCaptureError("Screenshot capture timed out") from None
 
         except Exception as e:
             # Cleanup temp file
             self.temp_manager.cleanup_temp_file(temp_path)
-            raise ScreenshotCaptureError(f"Failed to capture screenshot: {e}")
+            raise ScreenshotCaptureError(f"Failed to capture screenshot: {e}") from e
 
     def capture_region(self, region: CaptureRegion) -> Screenshot:
         """
@@ -202,7 +202,6 @@ class X11ScreenshotCapture(IScreenshotCapture):
                 cmd.extend(['--quality', str(self.quality)])
 
             # Add geometry parameter for region capture
-            # Format: WIDTHxHEIGHT+X+Y
             geometry = f"{region.width}x{region.height}+{region.x}+{region.y}"
             cmd.extend(['--autoselect', geometry])
 
@@ -214,7 +213,7 @@ class X11ScreenshotCapture(IScreenshotCapture):
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=10
+                timeout=10, check=False
             )
 
             if result.returncode != 0:
@@ -226,7 +225,7 @@ class X11ScreenshotCapture(IScreenshotCapture):
             # Create Screenshot object
             screenshot = Screenshot(
                 id=uuid4(),
-                timestamp=datetime.now(),
+                timestamp=datetime.now(timezone.utc),
                 file_path=temp_path,
                 format=self.image_format,
                 original_size_bytes=file_size,
@@ -243,11 +242,11 @@ class X11ScreenshotCapture(IScreenshotCapture):
 
         except subprocess.TimeoutExpired:
             self.temp_manager.cleanup_temp_file(temp_path)
-            raise ScreenshotCaptureError("Region capture timed out")
+            raise ScreenshotCaptureError("Region capture timed out") from None
 
         except Exception as e:
             self.temp_manager.cleanup_temp_file(temp_path)
-            raise ScreenshotCaptureError(f"Failed to capture region: {e}")
+            raise ScreenshotCaptureError(f"Failed to capture region: {e}") from e
 
     def detect_monitors(self) -> List[dict]:
         """
@@ -270,7 +269,7 @@ class X11ScreenshotCapture(IScreenshotCapture):
                 ['xrandr', '--query'],
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=5, check=False
             )
 
             if result.returncode != 0:
@@ -308,7 +307,6 @@ class X11ScreenshotCapture(IScreenshotCapture):
 
         for line in output.split('\n'):
             # Look for connected monitors with resolution
-            # Example: "HDMI-1 connected primary 1920x1080+0+0"
             if ' connected' in line:
                 parts = line.split()
                 name = parts[0]
@@ -317,7 +315,6 @@ class X11ScreenshotCapture(IScreenshotCapture):
                 # Extract resolution
                 for part in parts:
                     if 'x' in part and '+' in part:
-                        # Format: WIDTHxHEIGHT+X+Y
                         res_part = part.split('+')[0]
                         width, height = res_part.split('x')
 
@@ -342,14 +339,13 @@ class X11ScreenshotCapture(IScreenshotCapture):
                 ['xdpyinfo'],
                 capture_output=True,
                 text=True,
-                timeout=3
+                timeout=3, check=False
             )
 
             if result.returncode == 0:
                 # Parse dimensions from xdpyinfo
                 for line in result.stdout.split('\n'):
                     if 'dimensions:' in line:
-                        # Format: "  dimensions:    1920x1080 pixels (508x285 millimeters)"
                         parts = line.split()
                         if len(parts) >= 2:
                             dims = parts[1].split('x')
@@ -362,7 +358,7 @@ class X11ScreenshotCapture(IScreenshotCapture):
                                     'is_primary': True
                                 }]
 
-        except:
+        except Exception:
             pass
 
         # Ultimate fallback: assume common resolution
@@ -375,13 +371,14 @@ class X11ScreenshotCapture(IScreenshotCapture):
             'is_primary': True
         }]
 
-    def _get_image_resolution(self, image_path: Path) -> tuple[int, int]:
+    def _get_image_resolution(self, image_path: Path) -> Tuple[int, int]:
         """Get image resolution using PIL or identify command."""
         try:
             # Try using PIL (Pillow)
             from PIL import Image
             with Image.open(image_path) as img:
-                return img.size
+                width, height = img.size
+                return (int(width), int(height))
 
         except ImportError:
             # PIL not available, try identify command
@@ -390,14 +387,14 @@ class X11ScreenshotCapture(IScreenshotCapture):
                     ['identify', '-format', '%wx%h', str(image_path)],
                     capture_output=True,
                     text=True,
-                    timeout=3
+                    timeout=3, check=False
                 )
 
                 if result.returncode == 0:
                     width, height = result.stdout.strip().split('x')
                     return (int(width), int(height))
 
-            except:
+            except Exception:
                 pass
 
         # Fallback: get from file size estimation (very rough)

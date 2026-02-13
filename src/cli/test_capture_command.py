@@ -4,17 +4,16 @@
 Tests screenshot capture functionality and displays the result.
 """
 
-import click
-from pathlib import Path
-import tempfile
 import shutil
 
-from src.services.screenshot_capture.factory import ScreenshotCaptureFactory
-from src.services.config_manager import ConfigurationManager
-from src.lib.tool_detector import get_preferred_tool
+import click
+
 from src.lib.desktop_detector import detect_desktop_type
 from src.lib.exceptions import ScreenshotCaptureError
 from src.lib.logging_config import get_logger
+from src.lib.tool_detector import get_preferred_tool
+from src.services.config_manager import ConfigurationManager
+from src.services.screenshot_capture.factory import ScreenshotCaptureFactory
 
 logger = get_logger(__name__)
 
@@ -33,7 +32,7 @@ logger = get_logger(__name__)
     help='Open the captured screenshot after saving'
 )
 @click.pass_context
-def test_capture(ctx, monitor: int, open_file: bool):
+def test_capture(ctx: click.Context, monitor: int, open_file: bool) -> None:  # noqa: ARG001, PLR0912, PLR0915
     """
     Test screenshot capture functionality.
 
@@ -69,7 +68,7 @@ def test_capture(ctx, monitor: int, open_file: bool):
         if screenshot_tool:
             click.echo(click.style(f"  Screenshot Tool: {screenshot_tool.value}", fg='green'))
         else:
-            click.echo(click.style(f"  Screenshot Tool: None detected", fg='red'))
+            click.echo(click.style("  Screenshot Tool: None detected", fg='red'))
             click.echo(click.style("\n⚠️  No screenshot tool found. Install scrot (X11) or grim (Wayland).", fg='yellow'))
             raise click.Abort()
 
@@ -115,11 +114,11 @@ def test_capture(ctx, monitor: int, open_file: bool):
         # Check file size against limit
         if file_size_mb > config.screenshot.max_size_mb:
             click.echo(click.style(f"\n⚠️  Warning: Screenshot exceeds max size limit ({config.screenshot.max_size_mb} MB)", fg='yellow'))
-            click.echo(click.style(f"   Consider reducing quality or max_size_mb in config", fg='yellow'))
+            click.echo(click.style("   Consider reducing quality or max_size_mb in config", fg='yellow'))
 
         # Open file if requested
         if open_file:
-            click.echo(f"\nOpening screenshot...")
+            click.echo("\nOpening screenshot...")
             try:
                 import subprocess
                 if shutil.which('xdg-open'):
@@ -148,9 +147,9 @@ def test_capture(ctx, monitor: int, open_file: bool):
         click.echo("     • X11: sudo apt install scrot")
         click.echo("     • Wayland: sudo apt install grim")
         click.echo("  3. Verify monitor index with: claude-vision --list-monitors")
-        raise click.Abort()
+        raise click.Abort() from e
 
     except Exception as e:
         logger.error(f"Unexpected error in test-capture: {e}", exc_info=True)
         click.echo(click.style(f"\n❌ Unexpected error: {e}", fg='red'))
-        raise click.Abort()
+        raise click.Abort() from e

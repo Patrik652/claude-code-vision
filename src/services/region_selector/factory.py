@@ -9,11 +9,11 @@ import os
 from typing import Optional
 
 from src.interfaces.screenshot_service import IRegionSelector
-from src.services.region_selector.slurp_selector import SlurpRegionSelector
-from src.services.region_selector.xrectsel_selector import XrectselRegionSelector
-from src.services.region_selector.coordinate_selector import CoordinateRegionSelector
 from src.lib.exceptions import SelectionToolNotFoundError
 from src.lib.logging_config import get_logger
+from src.services.region_selector.coordinate_selector import CoordinateRegionSelector
+from src.services.region_selector.slurp_selector import SlurpRegionSelector
+from src.services.region_selector.xrectsel_selector import XrectselRegionSelector
 
 logger = get_logger(__name__)
 
@@ -64,19 +64,17 @@ class RegionSelectorFactory:
         # Try Wayland selector
         if env == 'wayland':
             try:
-                selector = SlurpRegionSelector()
                 logger.info("Created SlurpRegionSelector for Wayland")
-                return selector
+                return SlurpRegionSelector()
             except SelectionToolNotFoundError as e:
                 logger.warning(f"Slurp not available: {e}")
 
         # Try X11 selector
-        if env == 'x11' or env == 'wayland':
+        if env in ('x11', 'wayland'):
             # Try X11 even on Wayland as fallback (some tools work on both)
             try:
-                selector = XrectselRegionSelector()
                 logger.info("Created XrectselRegionSelector for X11")
-                return selector
+                return XrectselRegionSelector()
             except SelectionToolNotFoundError as e:
                 logger.warning(f"X11 selection tools not available: {e}")
 
@@ -129,9 +127,8 @@ class RegionSelectorFactory:
         """
         if environment == 'wayland':
             return SlurpRegionSelector()
-        elif environment == 'x11':
+        if environment == 'x11':
             return XrectselRegionSelector()
-        elif environment == 'coordinates':
+        if environment == 'coordinates':
             return CoordinateRegionSelector()
-        else:
-            raise ValueError(f"Unknown environment: {environment}")
+        raise ValueError(f"Unknown environment: {environment}")

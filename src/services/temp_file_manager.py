@@ -8,7 +8,7 @@ Implements ITempFileManager interface.
 import os
 import tempfile
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 from src.interfaces.screenshot_service import ITempFileManager
 from src.lib.exceptions import TempFileError
@@ -37,7 +37,7 @@ class TempFileManager(ITempFileManager):
         self.temp_dir = Path(temp_dir or "/tmp/claude-vision")
         self.cleanup_enabled = cleanup_enabled
         self.keep_on_error = keep_on_error
-        self._created_files = []  # Track files created in this session
+        self._created_files: List[Path] = []  # Track files created in this session
 
         # Ensure temp directory exists
         self._ensure_temp_directory()
@@ -55,7 +55,7 @@ class TempFileManager(ITempFileManager):
             self.temp_dir.mkdir(parents=True, exist_ok=True)
             logger.debug(f"Temp directory ready: {self.temp_dir}")
         except Exception as e:
-            raise TempFileError(f"Failed to create temp directory {self.temp_dir}: {e}")
+            raise TempFileError(f"Failed to create temp directory {self.temp_dir}: {e}") from e
 
     def create_temp_file(self, extension: str) -> Path:
         """
@@ -91,7 +91,7 @@ class TempFileManager(ITempFileManager):
             return path
 
         except Exception as e:
-            raise TempFileError(f"Failed to create temp file with extension '{extension}': {e}")
+            raise TempFileError(f"Failed to create temp file with extension '{extension}': {e}") from e
 
     def cleanup_temp_file(self, path: Path) -> None:
         """
@@ -122,9 +122,9 @@ class TempFileManager(ITempFileManager):
         except Exception as e:
             # Non-fatal error - log but don't raise
             logger.error(f"Failed to cleanup temp file {path}: {e}")
-            raise TempFileError(f"Failed to cleanup temp file {path}: {e}")
+            raise TempFileError(f"Failed to cleanup temp file {path}: {e}") from e
 
-    def cleanup_all_temp_files(self) -> None:
+    def cleanup_all_temp_files(self) -> None:  # noqa: PLR0912
         """
         Delete all temporary files in temp directory.
 
@@ -175,7 +175,7 @@ class TempFileManager(ITempFileManager):
             # Re-raise TempFileError
             raise
         except Exception as e:
-            raise TempFileError(f"Failed to cleanup all temp files: {e}")
+            raise TempFileError(f"Failed to cleanup all temp files: {e}") from e
 
     def get_temp_dir(self) -> Path:
         """
@@ -186,7 +186,7 @@ class TempFileManager(ITempFileManager):
         """
         return self.temp_dir
 
-    def get_created_files(self) -> list[Path]:
+    def get_created_files(self) -> List[Path]:
         """
         Get list of files created in this session.
 
@@ -195,7 +195,7 @@ class TempFileManager(ITempFileManager):
         """
         return self._created_files.copy()
 
-    def __del__(self):
+    def __del__(self) -> None:
         """Cleanup on object destruction if cleanup is enabled."""
         if self.cleanup_enabled and self._created_files:
             try:

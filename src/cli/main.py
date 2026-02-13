@@ -4,19 +4,20 @@ Main CLI entry point for Claude Code Vision.
 Aggregates all commands and provides the primary interface.
 """
 
-import click
 import sys
 
-from src.cli.vision_command import vision
+import click
+
+from src.cli.add_privacy_zone_command import add_privacy_zone, list_privacy_zones, remove_privacy_zone
+from src.cli.doctor_command import doctor
+from src.cli.init_command import init_config
+from src.cli.list_monitors_command import list_monitors
+from src.cli.test_capture_command import test_capture
+from src.cli.validate_config_command import validate_config
 from src.cli.vision_area_command import vision_area
 from src.cli.vision_auto_command import vision_auto
+from src.cli.vision_command import vision
 from src.cli.vision_stop_command import vision_stop
-from src.cli.add_privacy_zone_command import add_privacy_zone, list_privacy_zones, remove_privacy_zone
-from src.cli.init_command import init_config
-from src.cli.doctor_command import doctor
-from src.cli.list_monitors_command import list_monitors
-from src.cli.validate_config_command import validate_config
-from src.cli.test_capture_command import test_capture
 from src.lib.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -25,7 +26,7 @@ logger = get_logger(__name__)
 @click.group(invoke_without_command=True)
 @click.version_option(version='0.1.0', prog_name='claude-vision')
 @click.pass_context
-def cli(ctx):
+def cli(ctx: click.Context) -> None:
     """
     Claude Code Vision - Screenshot analysis integration for Claude Code.
 
@@ -70,7 +71,7 @@ cli.add_command(validate_config)
 cli.add_command(test_capture)
 
 
-def main():
+def main() -> None:
     """Main entry point for the CLI."""
     try:
         cli(obj={})

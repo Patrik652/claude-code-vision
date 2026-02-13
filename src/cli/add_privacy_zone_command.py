@@ -4,13 +4,14 @@ Add Privacy Zone CLI command implementation.
 Interactive helper for adding privacy zones to configuration.
 """
 
-import click
-from pathlib import Path
+from typing import Optional
 
-from src.services.config_manager import ConfigurationManager
-from src.models.entities import PrivacyZone
+import click
+
 from src.lib.exceptions import ConfigurationError
 from src.lib.logging_config import get_logger
+from src.models.entities import PrivacyZone
+from src.services.config_manager import ConfigurationManager
 
 logger = get_logger(__name__)
 
@@ -48,7 +49,15 @@ logger = get_logger(__name__)
     help='Monitor index (0 = primary, None = all monitors)'
 )
 @click.pass_context
-def add_privacy_zone(ctx, name, x, y, width, height, monitor):
+def add_privacy_zone(  # noqa: PLR0912, PLR0915
+    _ctx: click.Context,
+    name: Optional[str],
+    x: Optional[int],
+    y: Optional[int],
+    width: Optional[int],
+    height: Optional[int],
+    monitor: Optional[int]
+) -> None:
     """
     Add a privacy zone to protect sensitive screen areas.
 
@@ -134,7 +143,7 @@ def add_privacy_zone(ctx, name, x, y, width, height, monitor):
             zone.validate()
         except ValueError as e:
             click.echo(click.style(f"\nError: {e}", fg='red'))
-            raise click.Abort()
+            raise click.Abort() from e
 
         # Load current config
         config = config_manager.load_config()
@@ -163,7 +172,7 @@ def add_privacy_zone(ctx, name, x, y, width, height, monitor):
 
         # Display summary
         click.echo(click.style("\n✓ Privacy zone added successfully!", fg='green', bold=True))
-        click.echo(f"\nZone details:")
+        click.echo("\nZone details:")
         click.echo(f"  Name: {zone.name}")
         click.echo(f"  Position: ({zone.x}, {zone.y})")
         click.echo(f"  Size: {zone.width}x{zone.height}")
@@ -178,17 +187,17 @@ def add_privacy_zone(ctx, name, x, y, width, height, monitor):
 
     except ConfigurationError as e:
         click.echo(click.style(f"\nConfiguration error: {e}", fg='red'))
-        raise click.Abort()
+        raise click.Abort() from e
 
     except Exception as e:
         logger.error(f"Unexpected error in add-privacy-zone command: {e}", exc_info=True)
         click.echo(click.style(f"\nUnexpected error: {e}", fg='red'))
-        raise click.Abort()
+        raise click.Abort() from e
 
 
 @click.command(name='list-privacy-zones')
 @click.pass_context
-def list_privacy_zones(ctx):
+def list_privacy_zones(_ctx: click.Context) -> None:
     """
     List all configured privacy zones.
 
@@ -222,13 +231,13 @@ def list_privacy_zones(ctx):
     except Exception as e:
         logger.error(f"Error listing privacy zones: {e}", exc_info=True)
         click.echo(click.style(f"\nError: {e}", fg='red'))
-        raise click.Abort()
+        raise click.Abort() from e
 
 
 @click.command(name='remove-privacy-zone')
 @click.argument('zone_name', type=str)
 @click.pass_context
-def remove_privacy_zone(ctx, zone_name):
+def remove_privacy_zone(_ctx: click.Context, zone_name: str) -> None:
     """
     Remove a privacy zone by name.
 
@@ -273,4 +282,4 @@ def remove_privacy_zone(ctx, zone_name):
     except Exception as e:
         logger.error(f"Error removing privacy zone: {e}", exc_info=True)
         click.echo(click.style(f"\nError: {e}", fg='red'))
-        raise click.Abort()
+        raise click.Abort() from e

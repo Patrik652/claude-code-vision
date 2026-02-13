@@ -6,24 +6,27 @@ Handles user input, error reporting, and output formatting.
 """
 
 import sys
+from typing import Optional
+
 import click
 
-from src.services.vision_service import VisionService
-from src.services.config_manager import ConfigurationManager
-from src.services.temp_file_manager import TempFileManager
-from src.services.screenshot_capture.factory import ScreenshotCaptureFactory
-from src.services.image_processor import PillowImageProcessor
-from src.services.claude_api_client import AnthropicAPIClient
-from src.services.gemini_api_client import GeminiAPIClient
+from src.interfaces.screenshot_service import IClaudeAPIClient
 from src.lib.exceptions import (
-    VisionCommandError,
-    DisplayNotAvailableError,
-    ScreenshotCaptureError,
     AuthenticationError,
+    ConfigurationError,
+    DisplayNotAvailableError,
     OAuthConfigNotFoundError,
-    ConfigurationError
+    ScreenshotCaptureError,
+    VisionCommandError,
 )
-from src.lib.logging_config import setup_logging, get_logger
+from src.lib.logging_config import get_logger, setup_logging
+from src.services.claude_api_client import AnthropicAPIClient
+from src.services.config_manager import ConfigurationManager
+from src.services.gemini_api_client import GeminiAPIClient
+from src.services.image_processor import PillowImageProcessor
+from src.services.screenshot_capture.factory import ScreenshotCaptureFactory
+from src.services.temp_file_manager import TempFileManager
+from src.services.vision_service import VisionService
 
 logger = get_logger(__name__)
 
@@ -96,6 +99,7 @@ def get_vision_service() -> VisionService:
             logger.debug(f"Gemini API client not available: {e}")
 
         # Use primary provider as api_client
+        api_client: Optional[IClaudeAPIClient] = None
         if config.ai_provider.provider.lower() == 'gemini' and gemini_client:
             api_client = gemini_client
         elif config.ai_provider.provider.lower() == 'claude' and claude_client:
@@ -110,7 +114,7 @@ def get_vision_service() -> VisionService:
             )
 
         # Create vision service
-        vision_service = VisionService(
+        return VisionService(
             config_manager=config_manager,
             temp_manager=temp_manager,
             capture=capture,
@@ -120,17 +124,16 @@ def get_vision_service() -> VisionService:
             gemini_client=gemini_client
         )
 
-        return vision_service
 
     except Exception as e:
         logger.error(f"Failed to create vision service: {e}")
-        raise VisionCommandError(f"Failed to initialize vision service: {e}")
+        raise VisionCommandError(f"Failed to initialize vision service: {e}") from e
 
 
 @click.command()
 @click.argument('prompt', required=True)
 @click.option('--monitor', type=int, default=None, help='Monitor index to capture (default: from config)')
-def vision(prompt: str, monitor: int = None):
+def vision(prompt: str, monitor: Optional[int] = None) -> None:  # noqa: PLR0915
     """
     Capture screenshot and analyze with Claude.
 
@@ -165,13 +168,13 @@ def vision(prompt: str, monitor: int = None):
         sys.exit(0)
 
     except DisplayNotAvailableError as e:
-        click.echo(f"❌ Error: No display available", err=True)
+        click.echo("❌ Error: No display available", err=True)
         click.echo(f"\n{e}", err=True)
         click.echo("\nMake sure you're running in a graphical environment with DISPLAY or WAYLAND_DISPLAY set.", err=True)
         sys.exit(1)
 
     except ScreenshotCaptureError as e:
-        click.echo(f"❌ Error: Screenshot capture failed", err=True)
+        click.echo("❌ Error: Screenshot capture failed", err=True)
         click.echo(f"\n{e}", err=True)
         click.echo("\nPossible solutions:", err=True)
         click.echo("  - Install a screenshot tool: scrot (X11), grim (Wayland), or imagemagick", err=True)
@@ -179,30 +182,30 @@ def vision(prompt: str, monitor: int = None):
         sys.exit(1)
 
     except OAuthConfigNotFoundError as e:
-        click.echo(f"❌ Error: Claude Code authentication not configured", err=True)
+        click.echo("❌ Error: Claude Code authentication not configured", err=True)
         click.echo(f"\n{e}", err=True)
         click.echo("\nPlease configure Claude Code with your API key:", err=True)
-        click.echo(f"  1. Get your API key from https://console.anthropic.com/", err=True)
-        click.echo(f"  2. Save it in ~/.claude/config.json:", err=True)
-        click.echo(f'     {{"api_key": "your-api-key-here"}}', err=True)
+        click.echo("  1. Get your API key from https://console.anthropic.com/", err=True)
+        click.echo("  2. Save it in ~/.claude/config.json:", err=True)
+        click.echo('     {"api_key": "your-api-key-here"}', err=True)
         sys.exit(1)
 
     except AuthenticationError as e:
-        click.echo(f"❌ Error: Authentication failed", err=True)
+        click.echo("❌ Error: Authentication failed", err=True)
         click.echo(f"\n{e}", err=True)
         click.echo("\nYour API key may be invalid or expired.", err=True)
         click.echo("Please check your ~/.claude/config.json file.", err=True)
         sys.exit(1)
 
     except ConfigurationError as e:
-        click.echo(f"❌ Error: Configuration invalid", err=True)
+        click.echo("❌ Error: Configuration invalid", err=True)
         click.echo(f"\n{e}", err=True)
         click.echo("\nPlease check your configuration file:", err=True)
         click.echo("  ~/.config/claude-code-vision/config.yaml", err=True)
         sys.exit(1)
 
     except VisionCommandError as e:
-        click.echo(f"❌ Error: Vision command failed", err=True)
+        click.echo("❌ Error: Vision command failed", err=True)
         click.echo(f"\n{e}", err=True)
         sys.exit(1)
 

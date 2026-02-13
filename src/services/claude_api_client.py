@@ -10,22 +10,17 @@ Handles communication with Claude API including:
 Implements IClaudeAPIClient interface.
 """
 
-import json
 import base64
+import json
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, Optional, cast
 
 import requests
 
 from src.interfaces.screenshot_service import IClaudeAPIClient
-from src.models.entities import Screenshot
-from src.lib.exceptions import (
-    AuthenticationError,
-    APIError,
-    PayloadTooLargeError,
-    OAuthConfigNotFoundError
-)
+from src.lib.exceptions import APIError, AuthenticationError, OAuthConfigNotFoundError, PayloadTooLargeError
 from src.lib.logging_config import get_logger
+from src.models.entities import Screenshot
 
 logger = get_logger(__name__)
 
@@ -61,7 +56,7 @@ class AnthropicAPIClient(IClaudeAPIClient):
 
         logger.debug(f"AnthropicAPIClient initialized: endpoint={self.api_endpoint}")
 
-    def send_multimodal_prompt(self, text: str, screenshot: Screenshot) -> str:
+    def send_multimodal_prompt(self, text: str, screenshot: Screenshot) -> str:  # noqa: PLR0912
         """
         Send text + image prompt to Claude API.
 
@@ -87,7 +82,8 @@ class AnthropicAPIClient(IClaudeAPIClient):
         size_mb = screenshot.optimized_size_bytes / (1024 * 1024)
         if size_mb > self.MAX_IMAGE_SIZE_MB:
             raise PayloadTooLargeError(
-                f"Screenshot size ({size_mb:.2f} MB) exceeds API limit ({self.MAX_IMAGE_SIZE_MB} MB)"
+                size_mb=size_mb,
+                limit_mb=self.MAX_IMAGE_SIZE_MB,
             )
 
         try:
@@ -102,7 +98,7 @@ class AnthropicAPIClient(IClaudeAPIClient):
 
             # Prepare API request
             # Determine if this is an OAuth token or API key
-            if api_key.startswith('sk-ant-oat') or api_key.startswith('sk-ant-ort'):
+            if api_key.startswith(("sk-ant-oat", "sk-ant-ort")):
                 # OAuth token - use Authorization header
                 headers = {
                     "authorization": f"Bearer {api_key}",
@@ -135,32 +131,32 @@ class AnthropicAPIClient(IClaudeAPIClient):
             # Handle response
             if response.status_code == 401:
                 raise AuthenticationError("Invalid or expired API key")
-            elif response.status_code == 413:
-                raise PayloadTooLargeError("Request payload too large")
-            elif response.status_code != 200:
+            if response.status_code == 413:
+                raise PayloadTooLargeError(size_mb=size_mb, limit_mb=self.MAX_IMAGE_SIZE_MB)
+            if response.status_code != 200:
                 error_msg = f"API request failed: {response.status_code} - {response.text}"
                 logger.error(error_msg)
                 raise APIError(error_msg)
 
             # Parse response
-            response_data = response.json()
+            response_data = cast(Dict[str, Any], response.json())
 
             # Extract text from response
             if "content" in response_data and len(response_data["content"]) > 0:
-                response_text = response_data["content"][0].get("text", "")
+                first_content = cast(Dict[str, Any], response_data["content"][0])
+                response_text = str(first_content.get("text", ""))
                 logger.info(f"Received response: {len(response_text)} chars")
                 return response_text
-            else:
-                raise APIError("No content in API response")
+            raise APIError("No content in API response")
 
         except requests.exceptions.Timeout:
-            raise APIError("API request timed out")
+            raise APIError("API request timed out") from None
         except requests.exceptions.ConnectionError:
-            raise APIError("Failed to connect to API endpoint")
+            raise APIError("Failed to connect to API endpoint") from None
         except requests.exceptions.RequestException as e:
-            raise APIError(f"API request failed: {e}")
+            raise APIError(f"API request failed: {e}") from e
         except json.JSONDecodeError as e:
-            raise APIError(f"Failed to parse API response: {e}")
+            raise APIError(f"Failed to parse API response: {e}") from e
 
     def validate_oauth_token(self) -> bool:
         """
@@ -227,25 +223,31 @@ class AnthropicAPIClient(IClaudeAPIClient):
             )
 
         try:
-            with open(self.oauth_token_path, 'r') as f:
+            with open(self.oauth_token_path) as f:
                 config = json.load(f)
 
             # Extract API key from config
             # Try multiple possible locations for the token
-            api_key = None
+            api_key: Optional[str] = None
 
             # Check for direct api_key or apiKey field
-            api_key = config.get('api_key') or config.get('apiKey')
+            direct_key = config.get('api_key') or config.get('apiKey')
+            if isinstance(direct_key, str):
+                api_key = direct_key
 
             # Check for Claude AI OAuth structure (.credentials.json format)
             if not api_key and 'claudeAiOauth' in config:
                 oauth = config['claudeAiOauth']
-                api_key = oauth.get('accessToken')
+                oauth_key = oauth.get('accessToken')
+                if isinstance(oauth_key, str):
+                    api_key = oauth_key
 
             # Check for nested oauth structure
             if not api_key and 'oauth' in config:
                 oauth = config['oauth']
-                api_key = oauth.get('accessToken') or oauth.get('access_token')
+                nested_oauth_key = oauth.get('accessToken') or oauth.get('access_token')
+                if isinstance(nested_oauth_key, str):
+                    api_key = nested_oauth_key
 
             if not api_key:
                 raise AuthenticationError(
@@ -260,9 +262,9 @@ class AnthropicAPIClient(IClaudeAPIClient):
             return api_key
 
         except json.JSONDecodeError as e:
-            raise AuthenticationError(f"Invalid JSON in OAuth config: {e}")
+            raise AuthenticationError(f"Invalid JSON in OAuth config: {e}") from e
         except Exception as e:
-            raise AuthenticationError(f"Failed to read OAuth config: {e}")
+            raise AuthenticationError(f"Failed to read OAuth config: {e}") from e
 
     def _encode_image_base64(self, screenshot: Screenshot) -> str:
         """
@@ -287,7 +289,7 @@ class AnthropicAPIClient(IClaudeAPIClient):
             return encoded
 
         except Exception as e:
-            raise APIError(f"Failed to encode image: {e}")
+            raise APIError(f"Failed to encode image: {e}") from e
 
     def _construct_multimodal_messages(
         self,

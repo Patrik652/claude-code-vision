@@ -25,7 +25,7 @@ Thank you for your interest in contributing to Claude Code Vision! This document
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/claude-code-vision.git
+   git clone https://github.com/Patrik652/claude-code-vision.git
    cd claude-code-vision
    ```
 

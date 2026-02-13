@@ -5,14 +5,15 @@ Handles loading, saving, and validating configuration from YAML file.
 Implements IConfigurationManager interface.
 """
 
-import yaml
 from pathlib import Path
 from typing import Optional
 
-from src.models.entities import Configuration
+import yaml
+
 from src.interfaces.screenshot_service import IConfigurationManager
 from src.lib.exceptions import ConfigurationError
 from src.lib.logging_config import get_logger
+from src.models.entities import Configuration
 
 logger = get_logger(__name__)
 
@@ -52,7 +53,7 @@ class ConfigurationManager(IConfigurationManager):
             return Configuration()
 
         try:
-            with open(self.config_path, 'r', encoding='utf-8') as f:
+            with open(self.config_path, encoding='utf-8') as f:
                 data = yaml.safe_load(f)
 
             if not data:
@@ -69,9 +70,9 @@ class ConfigurationManager(IConfigurationManager):
             return config
 
         except yaml.YAMLError as e:
-            raise ConfigurationError(f"Invalid YAML in config file: {e}")
+            raise ConfigurationError(f"Invalid YAML in config file: {e}") from e
         except Exception as e:
-            raise ConfigurationError(f"Failed to load configuration: {e}")
+            raise ConfigurationError(f"Failed to load configuration: {e}") from e
 
     def save_config(self, config: Configuration) -> None:
         """
@@ -100,7 +101,7 @@ class ConfigurationManager(IConfigurationManager):
             logger.info(f"Configuration saved successfully to {self.config_path}")
 
         except Exception as e:
-            raise ConfigurationError(f"Failed to save configuration: {e}")
+            raise ConfigurationError(f"Failed to save configuration: {e}") from e
 
     def validate_config(self, config: Configuration) -> bool:
         """
@@ -151,7 +152,7 @@ class ConfigurationManager(IConfigurationManager):
 
         return True
 
-    def _merge_with_defaults(self, data: dict) -> Configuration:
+    def _merge_with_defaults(self, data: dict) -> Configuration:  # noqa: PLR0912, PLR0915
         """
         Merge loaded configuration with defaults.
 
@@ -239,15 +240,15 @@ class ConfigurationManager(IConfigurationManager):
                 config.temp.keep_on_error = t['keep_on_error']
 
         if 'logging' in data:
-            l = data['logging']
-            if 'level' in l:
-                config.logging.level = l['level']
-            if 'file' in l:
-                config.logging.file = l['file']
-            if 'max_size_mb' in l:
-                config.logging.max_size_mb = l['max_size_mb']
-            if 'backup_count' in l:
-                config.logging.backup_count = l['backup_count']
+            logging_cfg = data['logging']
+            if 'level' in logging_cfg:
+                config.logging.level = logging_cfg['level']
+            if 'file' in logging_cfg:
+                config.logging.file = logging_cfg['file']
+            if 'max_size_mb' in logging_cfg:
+                config.logging.max_size_mb = logging_cfg['max_size_mb']
+            if 'backup_count' in logging_cfg:
+                config.logging.backup_count = logging_cfg['backup_count']
 
         if 'ai_provider' in data:
             ap = data['ai_provider']

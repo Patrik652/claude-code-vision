@@ -6,16 +6,11 @@ Implements IRegionSelector interface.
 """
 
 import subprocess
-from typing import List
 
 from src.interfaces.screenshot_service import IRegionSelector
-from src.models.entities import CaptureRegion
-from src.lib.exceptions import (
-    RegionSelectionCancelledError,
-    SelectionToolNotFoundError,
-    InvalidRegionError
-)
+from src.lib.exceptions import InvalidRegionError, RegionSelectionCancelledError, SelectionToolNotFoundError
 from src.lib.logging_config import get_logger
+from src.models.entities import CaptureRegion
 
 logger = get_logger(__name__)
 
@@ -28,7 +23,7 @@ class XrectselRegionSelector(IRegionSelector):
     Fallback to slop if xrectsel not available.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize XrectselRegionSelector."""
         # Check for xrectsel or slop
         self.tool = self._detect_selection_tool()
@@ -53,7 +48,7 @@ class XrectselRegionSelector(IRegionSelector):
 
         if shutil.which('xrectsel'):
             return 'xrectsel'
-        elif shutil.which('slop'):
+        if shutil.which('slop'):
             return 'slop'
 
         return ''
@@ -77,17 +72,16 @@ class XrectselRegionSelector(IRegionSelector):
         try:
             if self.tool == 'xrectsel':
                 return self._select_with_xrectsel(monitor)
-            elif self.tool == 'slop':
+            if self.tool == 'slop':
                 return self._select_with_slop(monitor)
-            else:
-                raise SelectionToolNotFoundError("No selection tool available")
+            raise SelectionToolNotFoundError("No selection tool available")
 
         except subprocess.TimeoutExpired:
             logger.warning("Region selection timed out")
-            raise RegionSelectionCancelledError("Region selection timed out")
+            raise RegionSelectionCancelledError() from None
 
         except FileNotFoundError:
-            raise SelectionToolNotFoundError(f"{self.tool} command not found")
+            raise SelectionToolNotFoundError(f"{self.tool} command not found") from None
 
         except Exception as e:
             logger.error(f"Region selection failed: {e}")
@@ -114,17 +108,16 @@ class XrectselRegionSelector(IRegionSelector):
             cmd,
             capture_output=True,
             text=True,
-            timeout=60
+            timeout=60, check=False
         )
 
         # Check if user cancelled (exit code != 0)
         if result.returncode != 0:
             if result.returncode == 1:
                 logger.info("User cancelled region selection")
-                raise RegionSelectionCancelledError("Region selection was cancelled by user")
-            else:
-                logger.error(f"xrectsel failed with exit code {result.returncode}: {result.stderr}")
-                raise SelectionToolNotFoundError(f"xrectsel failed: {result.stderr}")
+                raise RegionSelectionCancelledError()
+            logger.error(f"xrectsel failed with exit code {result.returncode}: {result.stderr}")
+            raise SelectionToolNotFoundError(f"xrectsel failed: {result.stderr}")
 
         # Parse output
         output = result.stdout.strip()
@@ -157,13 +150,13 @@ class XrectselRegionSelector(IRegionSelector):
             cmd,
             capture_output=True,
             text=True,
-            timeout=60
+            timeout=60, check=False
         )
 
         # Check if user cancelled (exit code 1)
         if result.returncode == 1:
             logger.info("User cancelled region selection")
-            raise RegionSelectionCancelledError("Region selection was cancelled by user")
+            raise RegionSelectionCancelledError()
 
         # Check for other errors
         if result.returncode != 0:
@@ -195,7 +188,6 @@ class XrectselRegionSelector(IRegionSelector):
         """
         try:
             # Expected format: "X Y W H"
-            # Example: "100 200 400 300"
             parts = output.split()
 
             if len(parts) != 4:
@@ -207,7 +199,7 @@ class XrectselRegionSelector(IRegionSelector):
             height = int(parts[3])
 
             # Create CaptureRegion
-            region = CaptureRegion(
+            return CaptureRegion(
                 x=x,
                 y=y,
                 width=width,
@@ -216,10 +208,9 @@ class XrectselRegionSelector(IRegionSelector):
                 selection_method='graphical'
             )
 
-            return region
 
         except (ValueError, IndexError) as e:
-            raise InvalidRegionError(f"Failed to parse output '{output}': {e}")
+            raise InvalidRegionError(f"Failed to parse output '{output}': {e}") from e
 
     def select_region_coordinates(
         self,
