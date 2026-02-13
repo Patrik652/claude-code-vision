@@ -46,9 +46,10 @@ jobs:
 
     - name: Run tests with pytest
       run: |
-        pytest --cov=src --cov-report=xml --cov-report=term -v
+        python -m pytest --cov=src --cov-report=xml --cov-report=term -v
       env:
         DISPLAY: ':99'
+        PYTHONPATH: .
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
