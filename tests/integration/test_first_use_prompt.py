@@ -1,228 +1,167 @@
-"""
-Integration tests for first-use confirmation prompt.
+"""Integration tests for first-use privacy confirmation workflow (FR-013)."""
 
-Tests the privacy confirmation workflow on first use (FR-013).
-"""
+from datetime import UTC, datetime
+from pathlib import Path
+from uuid import uuid4
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock
-from pathlib import Path
 import yaml
 
-from src.models.entities import Configuration, PrivacyConfig
+from src.lib.exceptions import VisionCommandError
+from src.models.entities import Configuration, PrivacyConfig, Screenshot
 from src.services.config_manager import ConfigurationManager
+from src.services.vision_service import VisionService
 
 
-class TestFirstUsePrompt:
-    """Integration tests for first-use privacy confirmation."""
+def _build_service(mocker, config: Configuration):
+    config.ai_provider.provider = "claude"
+    config.ai_provider.fallback_to_gemini = False
 
-    @pytest.fixture
-    def config_manager(self, tmp_path):
-        """Create ConfigurationManager with temporary config file."""
-        config_file = tmp_path / "config.yaml"
-        return ConfigurationManager(config_file)
+    config_manager = mocker.Mock()
+    config_manager.load_config.return_value = config
 
-    @pytest.fixture
-    def fresh_config(self):
-        """Create fresh configuration with prompt_first_use enabled."""
-        return Configuration(
-            privacy=PrivacyConfig(
-                enabled=True,
-                prompt_first_use=True,
-                zones=[]
-            )
-        )
+    temp_manager = mocker.Mock()
+    capture = mocker.Mock()
+    processor = mocker.Mock()
+    api_client = mocker.Mock()
 
-    def test_first_use_prompt_displayed_on_first_run(self, config_manager, fresh_config):
-        """Test that prompt is displayed on first vision command."""
-        # Save fresh config
-        config_manager.save_config(fresh_config)
+    screenshot = Screenshot(
+        id=uuid4(),
+        timestamp=datetime.now(tz=UTC),
+        file_path=Path("/tmp/test.png"),
+        format="png",
+        original_size_bytes=1024,
+        optimized_size_bytes=512,
+        resolution=(100, 100),
+        source_monitor=0,
+        capture_method="scrot",
+        privacy_zones_applied=False,
+    )
 
-        # Load config
-        loaded = config_manager.load_config()
+    capture.capture_full_screen.return_value = screenshot
+    processor.optimize_image.return_value = screenshot
+    processor.apply_privacy_zones.return_value = screenshot
+    api_client.send_multimodal_prompt.return_value = "analysis"
 
-        # Should have prompt_first_use enabled
-        assert loaded.privacy.prompt_first_use is True
+    service = VisionService(
+        config_manager=config_manager,
+        temp_manager=temp_manager,
+        capture=capture,
+        processor=processor,
+        api_client=api_client,
+        region_selector=mocker.Mock(),
+        session_manager=mocker.Mock(),
+        gemini_client=None,
+    )
 
-    def test_first_use_prompt_disabled_after_acceptance(self, config_manager, fresh_config):
-        """Test that prompt is disabled after user accepts."""
-        # Save fresh config
-        config_manager.save_config(fresh_config)
-
-        # Simulate user accepting
-        config = config_manager.load_config()
-        config.privacy.prompt_first_use = False
-        config_manager.save_config(config)
-
-        # Reload
-        reloaded = config_manager.load_config()
-
-        # Should now be disabled
-        assert reloaded.privacy.prompt_first_use is False
-
-    def test_first_use_prompt_respects_config_setting(self, config_manager):
-        """Test that prompt respects the configuration setting."""
-        # Config with prompt disabled
-        config = Configuration(
-            privacy=PrivacyConfig(
-                enabled=True,
-                prompt_first_use=False,
-                zones=[]
-            )
-        )
-
-        config_manager.save_config(config)
-        loaded = config_manager.load_config()
-
-        assert loaded.privacy.prompt_first_use is False
-
-
-@pytest.mark.skip(reason="Requires VisionService implementation")
-class TestFirstUseWorkflow:
-    """Integration tests for complete first-use workflow."""
-
-    def test_vision_command_triggers_first_use_prompt(self):
-        """Test that /vision command triggers prompt on first use."""
-        # This would test the complete workflow:
-        # 1. User runs /vision for first time
-        # 2. Prompt is displayed asking about privacy
-        # 3. User accepts/declines
-        # 4. Config is updated
-        # 5. Screenshot is taken
-        pytest.skip("Requires VisionService implementation")
-
-    def test_first_use_prompt_user_accepts(self):
-        """Test workflow when user accepts privacy prompt."""
-        pytest.skip("Requires VisionService implementation")
-
-    def test_first_use_prompt_user_declines(self):
-        """Test workflow when user declines privacy prompt."""
-        pytest.skip("Requires VisionService implementation")
-
-    def test_first_use_prompt_only_shown_once(self):
-        """Test that prompt is only shown on first use."""
-        pytest.skip("Requires VisionService implementation")
-
-
-@pytest.mark.skip(reason="Requires CLI implementation")
-class TestFirstUsePromptCLI:
-    """Integration tests for first-use prompt in CLI."""
-
-    def test_cli_displays_privacy_warning(self):
-        """Test that CLI displays privacy warning on first use."""
-        pytest.skip("Requires CLI implementation")
-
-    def test_cli_accepts_user_confirmation(self):
-        """Test CLI accepts user confirmation."""
-        pytest.skip("Requires CLI implementation")
-
-    def test_cli_handles_user_rejection(self):
-        """Test CLI handles when user rejects."""
-        pytest.skip("Requires CLI implementation")
-
-
-class TestPrivacyPromptContent:
-    """Tests for privacy prompt content and messaging."""
-
-    def test_privacy_prompt_message_exists(self):
-        """Test that privacy prompt message is defined."""
-        # This would verify the prompt message exists in code
-        # Example prompt message:
-        expected_message_parts = [
-            "privacy",
-            "screenshot",
-            "transmitted",
-            "Claude"
-        ]
-
-        # In actual implementation, this would check the actual prompt message
-        # For now, we just verify the concept
-        assert all(isinstance(part, str) for part in expected_message_parts)
-
-    def test_privacy_prompt_mentions_key_points(self):
-        """Test that privacy prompt covers key information."""
-        # Key points that should be in the prompt:
-        key_points = [
-            "Screenshots are transmitted to Claude API",
-            "Privacy zones can redact sensitive information",
-            "Screenshots are immediately deleted after transmission",
-            "No screenshots are stored permanently"
-        ]
-
-        # In actual implementation, verify these are in the prompt
-        assert all(isinstance(point, str) for point in key_points)
+    return service, config_manager, api_client, temp_manager
 
 
 class TestFirstUseConfiguration:
-    """Tests for first-use configuration persistence."""
+    @pytest.fixture()
+    def config_manager(self, tmp_path):
+        config_file = tmp_path / "config.yaml"
+        return ConfigurationManager(config_file)
 
-    @pytest.fixture
-    def config_file(self, tmp_path):
-        """Create temporary config file."""
-        return tmp_path / "test_config.yaml"
-
-    def test_default_config_has_prompt_enabled(self, config_file):
-        """Test that default configuration has prompt_first_use enabled."""
+    def test_default_config_has_prompt_enabled(self):
         config = Configuration()
-
         assert config.privacy.prompt_first_use is True
 
-    def test_config_persists_prompt_state(self, config_file):
-        """Test that prompt state is persisted to config file."""
-        manager = ConfigurationManager(config_file)
-
-        # Create config with prompt disabled
+    def test_config_persists_prompt_state(self, config_manager):
         config = Configuration(
             privacy=PrivacyConfig(
                 enabled=True,
                 prompt_first_use=False,
-                zones=[]
+                zones=[],
             )
         )
+        config_manager.save_config(config)
 
-        # Save
-        manager.save_config(config)
-
-        # Verify file contents
-        with open(config_file, 'r') as f:
+        with config_manager.config_path.open("r", encoding="utf-8") as f:
             data = yaml.safe_load(f)
 
-        assert data['privacy']['prompt_first_use'] is False
+        assert data["privacy"]["prompt_first_use"] is False
 
-    def test_config_loads_prompt_state(self, config_file):
-        """Test that prompt state is loaded from config file."""
-        # Create config file manually
+    def test_config_loads_prompt_state(self, config_manager):
         config_data = {
-            'version': '1.0',
-            'privacy': {
-                'enabled': True,
-                'prompt_first_use': False,
-                'zones': []
-            }
+            "version": "1.0",
+            "privacy": {
+                "enabled": True,
+                "prompt_first_use": False,
+                "zones": [],
+            },
         }
-
-        with open(config_file, 'w') as f:
+        with config_manager.config_path.open("w", encoding="utf-8") as f:
             yaml.dump(config_data, f)
 
-        # Load via manager
-        manager = ConfigurationManager(config_file)
-        loaded = manager.load_config()
-
+        loaded = config_manager.load_config()
         assert loaded.privacy.prompt_first_use is False
 
 
-@pytest.mark.skip(reason="Requires full implementation")
-class TestFirstUseEdgeCases:
-    """Edge case tests for first-use prompt."""
+class TestFirstUseWorkflow:
+    def test_prompt_acceptance_disables_future_prompt(self, mocker):
+        config = Configuration()
+        config.privacy.prompt_first_use = True
+        service, config_manager, _api_client, _temp_manager = _build_service(mocker, config)
 
-    def test_prompt_with_missing_config_file(self):
-        """Test first-use prompt when config file doesn't exist."""
-        pytest.skip("Requires full implementation")
+        confirm = mocker.patch("click.confirm", return_value=True)
 
-    def test_prompt_with_corrupted_config(self):
-        """Test first-use prompt when config file is corrupted."""
-        pytest.skip("Requires full implementation")
+        assert service._check_first_use_prompt() is True
+        assert config.privacy.prompt_first_use is False
+        config_manager.save_config.assert_called_once_with(config)
+        confirm.assert_called_once()
 
-    def test_concurrent_first_use_requests(self):
-        """Test handling of concurrent first-use requests."""
-        pytest.skip("Requires full implementation")
+    def test_prompt_rejection_raises_actionable_error(self, mocker):
+        config = Configuration()
+        config.privacy.prompt_first_use = True
+        service, config_manager, _api_client, _temp_manager = _build_service(mocker, config)
+
+        mocker.patch("click.confirm", return_value=False)
+
+        with pytest.raises(VisionCommandError, match="Privacy terms not accepted"):
+            service._check_first_use_prompt()
+
+        config_manager.save_config.assert_not_called()
+
+    def test_prompt_not_shown_when_disabled(self, mocker):
+        config = Configuration()
+        config.privacy.prompt_first_use = False
+        service, config_manager, _api_client, _temp_manager = _build_service(mocker, config)
+
+        confirm = mocker.patch("click.confirm")
+
+        assert service._check_first_use_prompt() is True
+        confirm.assert_not_called()
+        config_manager.save_config.assert_not_called()
+
+    def test_execute_vision_command_shows_prompt_only_once(self, mocker):
+        config = Configuration()
+        config.privacy.prompt_first_use = True
+        config.privacy.enabled = False
+        service, _config_manager, api_client, temp_manager = _build_service(mocker, config)
+
+        confirm = mocker.patch("click.confirm", return_value=True)
+
+        first = service.execute_vision_command("First call")
+        second = service.execute_vision_command("Second call")
+
+        assert first == "analysis"
+        assert second == "analysis"
+        assert confirm.call_count == 1
+        assert api_client.send_multimodal_prompt.call_count == 2
+        assert temp_manager.cleanup_temp_file.call_count == 2
+
+    def test_prompt_prints_privacy_notice_header(self, mocker):
+        config = Configuration()
+        config.privacy.prompt_first_use = True
+        service, _config_manager, _api_client, _temp_manager = _build_service(mocker, config)
+
+        mocker.patch("click.confirm", return_value=True)
+        print_mock = mocker.patch("builtins.print")
+
+        service._check_first_use_prompt()
+
+        printed = " ".join(" ".join(map(str, c.args)) for c in print_mock.call_args_list)
+        assert "PRIVACY NOTICE" in printed
+        assert "Capture screenshots of your screen" in printed
+        assert "Immediately delete screenshots after transmission" in printed
