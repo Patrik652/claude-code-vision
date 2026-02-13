@@ -1,182 +1,139 @@
-"""
-Integration tests for session pause on idle detection.
+"""Integration tests for idle pause behavior in MonitoringSessionManager."""
 
-Tests the idle pause/resume functionality in monitoring sessions.
-"""
+from datetime import UTC, datetime
+from uuid import uuid4
 
-import pytest
-import time
-from unittest.mock import Mock, patch
+from src.models.entities import Configuration, MonitoringSession
+from src.services.monitoring_session_manager import MonitoringSessionManager
 
 
-@pytest.mark.skip(reason="Requires full implementation")
+def _build_manager(mocker, idle_seconds_provider, idle_pause_minutes: int = 5):
+    config = Configuration()
+    config.monitoring.idle_pause_minutes = idle_pause_minutes
+    config.monitoring.max_duration_minutes = 0
+    config.monitoring.change_detection = False
+    config.monitoring.interval_seconds = 1
+
+    config_manager = mocker.Mock()
+    config_manager.load_config.return_value = config
+
+    return MonitoringSessionManager(
+        config_manager=config_manager,
+        temp_manager=mocker.Mock(),
+        capture=mocker.Mock(),
+        processor=mocker.Mock(),
+        api_client=mocker.Mock(),
+        idle_seconds_provider=idle_seconds_provider,
+    )
+
+
+def _active_session() -> MonitoringSession:
+    return MonitoringSession(
+        id=uuid4(),
+        started_at=datetime.now(tz=UTC),
+        interval_seconds=1,
+        is_active=True,
+    )
+
+
 class TestIdlePauseDetection:
-    """Integration tests for idle detection and auto-pause."""
+    def test_session_pauses_after_idle_timeout(self, mocker) -> None:
+        manager = _build_manager(mocker, idle_seconds_provider=lambda: 300.0, idle_pause_minutes=5)
+        manager._active_session = _active_session()
 
-    def test_session_pauses_after_idle_timeout(self):
-        """Test that monitoring session pauses after idle timeout."""
-        # This would test:
-        # 1. Start /vision.auto with idle_pause=5 minutes
-        # 2. Simulate no user activity for 5 minutes
-        # 3. Verify session is paused
-        # 4. Verify no more captures occur
-        # 5. Stop session
-        pytest.skip("Requires full implementation with idle detection")
+        manager._maybe_update_idle_pause(idle_pause_minutes=5)
 
-    def test_session_resumes_after_activity(self):
-        """Test that paused session resumes when user becomes active."""
-        # This would test:
-        # 1. Start /vision.auto
-        # 2. Pause session due to idle
-        # 3. Simulate user activity (mouse move, keyboard)
-        # 4. Verify session resumes
-        # 5. Verify captures resume
-        # 6. Stop session
-        pytest.skip("Requires full implementation with activity detection")
+        assert manager._active_session.paused_at is not None
+        assert manager._active_session.is_active is True
 
-    def test_idle_timeout_configurable(self):
-        """Test that idle timeout is configurable."""
-        # This would test:
-        # 1. Configure idle_pause_minutes to custom value
-        # 2. Start /vision.auto
-        # 3. Verify custom timeout is used
-        # 4. Stop session
-        pytest.skip("Requires full implementation")
+    def test_session_resumes_after_activity(self, mocker) -> None:
+        manager = _build_manager(mocker, idle_seconds_provider=lambda: 1.0, idle_pause_minutes=5)
+        manager._active_session = _active_session()
+        manager._active_session.paused_at = datetime.now(tz=UTC)
 
-    def test_idle_pause_can_be_disabled(self):
-        """Test that idle pause can be disabled in config."""
-        # This would test:
-        # 1. Disable idle pause in config
-        # 2. Start /vision.auto
-        # 3. Simulate idle period
-        # 4. Verify session does NOT pause
-        # 5. Stop session
-        pytest.skip("Requires full implementation")
+        manager._maybe_update_idle_pause(idle_pause_minutes=5)
+
+        assert manager._active_session.paused_at is None
+        assert manager._active_session.is_active is True
+
+    def test_idle_pause_can_be_disabled(self, mocker) -> None:
+        manager = _build_manager(mocker, idle_seconds_provider=lambda: 9999.0, idle_pause_minutes=0)
+        manager._active_session = _active_session()
+
+        manager._maybe_update_idle_pause(idle_pause_minutes=0)
+
+        assert manager._active_session.paused_at is None
+
+    def test_idle_detection_unavailable_does_not_change_state(self, mocker) -> None:
+        manager = _build_manager(mocker, idle_seconds_provider=lambda: None, idle_pause_minutes=5)
+        manager._active_session = _active_session()
+
+        manager._maybe_update_idle_pause(idle_pause_minutes=5)
+
+        assert manager._active_session.paused_at is None
 
 
-@pytest.mark.skip(reason="Requires full implementation")
 class TestIdlePauseState:
-    """Integration tests for idle pause state tracking."""
+    def test_paused_at_timestamp_set_when_paused(self, mocker) -> None:
+        manager = _build_manager(mocker, idle_seconds_provider=lambda: 600.0, idle_pause_minutes=5)
+        manager._active_session = _active_session()
 
-    def test_paused_at_timestamp_set(self):
-        """Test that paused_at timestamp is set when paused."""
-        # This would test:
-        # 1. Start /vision.auto
-        # 2. Trigger idle pause
-        # 3. Query session state
-        # 4. Verify paused_at is set to current time
-        # 5. Stop session
-        pytest.skip("Requires full implementation")
+        manager._maybe_update_idle_pause(idle_pause_minutes=5)
 
-    def test_paused_at_timestamp_cleared_on_resume(self):
-        """Test that paused_at is cleared when session resumes."""
-        # This would test:
-        # 1. Start /vision.auto
-        # 2. Pause session
-        # 3. Resume session
-        # 4. Verify paused_at is None
-        # 5. Stop session
-        pytest.skip("Requires full implementation")
+        assert isinstance(manager._active_session.paused_at, datetime)
 
-    def test_is_active_remains_true_when_paused(self):
-        """Test that is_active flag stays true even when paused."""
-        # This would test:
-        # 1. Start /vision.auto
-        # 2. Pause session
-        # 3. Query session
-        # 4. Verify is_active is still True (session is active but paused)
-        # 5. Stop session
-        pytest.skip("Requires full implementation")
+    def test_paused_at_timestamp_cleared_on_resume(self, mocker) -> None:
+        manager = _build_manager(mocker, idle_seconds_provider=lambda: 0.0, idle_pause_minutes=5)
+        manager._active_session = _active_session()
+        manager._active_session.paused_at = datetime.now(tz=UTC)
+
+        manager._maybe_update_idle_pause(idle_pause_minutes=5)
+
+        assert manager._active_session.paused_at is None
+
+    def test_stop_while_paused(self, mocker) -> None:
+        manager = _build_manager(mocker, idle_seconds_provider=lambda: 600.0, idle_pause_minutes=5)
+        session = _active_session()
+        manager._active_session = session
+        manager._active_session.paused_at = datetime.now(tz=UTC)
+
+        manager.stop_session(session.id)
+
+        assert manager.get_active_session() is None
 
 
-@pytest.mark.skip(reason="Requires full implementation")
-class TestIdleDetectionMethods:
-    """Integration tests for different idle detection methods."""
+class TestIdlePauseLoopBehavior:
+    def test_capture_loop_skips_capture_when_session_paused(self, mocker) -> None:
+        manager = _build_manager(mocker, idle_seconds_provider=lambda: 600.0, idle_pause_minutes=5)
+        manager._active_session = _active_session()
+        manager._active_session.paused_at = datetime.now(tz=UTC)
 
-    def test_mouse_activity_prevents_pause(self):
-        """Test that mouse movement prevents idle pause."""
-        # This would test:
-        # 1. Start /vision.auto with short idle timeout
-        # 2. Continuously move mouse
-        # 3. Wait past idle timeout
-        # 4. Verify session is NOT paused
-        # 5. Stop session
-        pytest.skip("Requires platform-specific idle detection")
+        perform_capture = mocker.patch.object(manager, "_perform_capture")
 
-    def test_keyboard_activity_prevents_pause(self):
-        """Test that keyboard activity prevents idle pause."""
-        # This would test:
-        # 1. Start /vision.auto with short idle timeout
-        # 2. Type on keyboard periodically
-        # 3. Wait past idle timeout
-        # 4. Verify session is NOT paused
-        # 5. Stop session
-        pytest.skip("Requires platform-specific idle detection")
+        def _sleep_and_stop(_seconds: float) -> None:
+            manager._stop_event.set()
 
-    def test_idle_time_calculation(self):
-        """Test that system idle time is calculated correctly."""
-        # This would test:
-        # 1. Query system idle time
-        # 2. Verify it increases when no activity
-        # 3. Verify it resets when activity occurs
-        pytest.skip("Requires platform-specific API")
+        mocker.patch("src.services.monitoring_session_manager.time.sleep", side_effect=_sleep_and_stop)
 
+        manager._capture_loop()
 
-@pytest.mark.skip(reason="Requires full implementation")
-class TestIdlePauseNotifications:
-    """Integration tests for idle pause notifications."""
+        perform_capture.assert_not_called()
+        assert manager._stop_event.is_set()
 
-    def test_pause_notification_logged(self):
-        """Test that pause event is logged."""
-        # This would test:
-        # 1. Start /vision.auto
-        # 2. Trigger idle pause
-        # 3. Check logs
-        # 4. Verify pause event was logged
-        # 5. Stop session
-        pytest.skip("Requires full implementation")
+    def test_capture_loop_resumes_capture_after_activity(self, mocker) -> None:
+        idle_values = iter([600.0, 0.0])
+        manager = _build_manager(mocker, idle_seconds_provider=lambda: next(idle_values), idle_pause_minutes=5)
+        manager._active_session = _active_session()
 
-    def test_resume_notification_logged(self):
-        """Test that resume event is logged."""
-        # This would test:
-        # 1. Start /vision.auto
-        # 2. Pause session
-        # 3. Resume session
-        # 4. Check logs
-        # 5. Verify resume event was logged
-        # 6. Stop session
-        pytest.skip("Requires full implementation")
+        call_count = {"perform": 0}
 
+        def _perform_capture(_change_detection_enabled: bool) -> None:
+            call_count["perform"] += 1
+            manager._stop_event.set()
 
-@pytest.mark.skip(reason="Requires full implementation")
-class TestIdlePauseEdgeCases:
-    """Edge case tests for idle pause functionality."""
+        manager._perform_capture = _perform_capture
+        mocker.patch("src.services.monitoring_session_manager.time.sleep", side_effect=lambda _s: None)
 
-    def test_manual_pause_during_idle_pause(self):
-        """Test manual pause while already paused due to idle."""
-        # This would test:
-        # 1. Start /vision.auto
-        # 2. Trigger idle pause
-        # 3. Manually pause session (via API)
-        # 4. Verify no errors
-        # 5. Stop session
-        pytest.skip("Requires full implementation")
+        manager._capture_loop()
 
-    def test_stop_while_paused(self):
-        """Test stopping session while in paused state."""
-        # This would test:
-        # 1. Start /vision.auto
-        # 2. Pause due to idle
-        # 3. Run /vision.stop
-        # 4. Verify session stops cleanly
-        pytest.skip("Requires full implementation")
-
-    def test_immediate_activity_after_pause(self):
-        """Test immediate activity right after pause is triggered."""
-        # This would test:
-        # 1. Start /vision.auto
-        # 2. Trigger pause
-        # 3. Immediately resume (simulated activity)
-        # 4. Verify session handles rapid pause/resume
-        # 5. Stop session
-        pytest.skip("Requires full implementation")
+        assert call_count["perform"] == 1
