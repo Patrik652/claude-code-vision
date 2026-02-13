@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import builtins
+import sys
+from types import ModuleType
+
 import pytest
 
 from src.lib.desktop_detector import DesktopType
@@ -14,6 +18,13 @@ class _DummyCapture:
     def __init__(self, temp_manager=None, **kwargs):
         self.temp_manager = temp_manager
         self.kwargs = kwargs
+
+
+def _install_fake_capture_module(monkeypatch: pytest.MonkeyPatch, module_name: str, class_name: str) -> None:
+    fake_module = ModuleType(module_name)
+    fake_class = type(class_name, (), {"__init__": _DummyCapture.__init__})
+    setattr(fake_module, class_name, fake_class)
+    monkeypatch.setitem(sys.modules, module_name, fake_module)
 
 
 def test_get_tool_from_name_maps_supported_values() -> None:
@@ -133,3 +144,91 @@ def test_create_screenshot_capture_convenience_function_delegates(monkeypatch: p
     result = create_screenshot_capture(image_format="png", quality=88, preferred_tool="grim")
 
     assert result == {"image_format": "png", "quality": 88, "preferred_tool": "grim"}
+
+
+def test_create_implementation_scrot_branch(monkeypatch: pytest.MonkeyPatch) -> None:
+    _install_fake_capture_module(
+        monkeypatch,
+        "src.services.screenshot_capture.x11_capture",
+        "X11ScreenshotCapture",
+    )
+
+    instance = ScreenshotCaptureFactory._create_implementation(
+        tool=ScreenshotTool.SCROT,
+        desktop_type=DesktopType.X11,
+        temp_manager=object(),
+        image_format="png",
+        quality=85,
+    )
+
+    assert instance.kwargs["image_format"] == "png"
+    assert instance.kwargs["quality"] == 85
+
+
+def test_create_implementation_grim_branch(monkeypatch: pytest.MonkeyPatch) -> None:
+    _install_fake_capture_module(
+        monkeypatch,
+        "src.services.screenshot_capture.wayland_capture",
+        "WaylandScreenshotCapture",
+    )
+
+    instance = ScreenshotCaptureFactory._create_implementation(
+        tool=ScreenshotTool.GRIM,
+        desktop_type=DesktopType.WAYLAND,
+        temp_manager=object(),
+        image_format="jpeg",
+        quality=70,
+    )
+
+    assert instance.kwargs["image_format"] == "jpeg"
+    assert instance.kwargs["quality"] == 70
+
+
+def test_create_implementation_import_branch(monkeypatch: pytest.MonkeyPatch) -> None:
+    _install_fake_capture_module(
+        monkeypatch,
+        "src.services.screenshot_capture.imagemagick_capture",
+        "ImageMagickScreenshotCapture",
+    )
+
+    instance = ScreenshotCaptureFactory._create_implementation(
+        tool=ScreenshotTool.IMPORT,
+        desktop_type=DesktopType.X11,
+        temp_manager=object(),
+        image_format="webp",
+        quality=60,
+    )
+
+    assert instance.kwargs["image_format"] == "webp"
+    assert instance.kwargs["quality"] == 60
+
+
+def test_create_implementation_unsupported_tool_raises() -> None:
+    with pytest.raises(ScreenshotCaptureError, match="Unsupported screenshot tool"):
+        ScreenshotCaptureFactory._create_implementation(
+            tool=ScreenshotTool.UNKNOWN,
+            desktop_type=DesktopType.X11,
+            temp_manager=object(),
+            image_format="png",
+            quality=90,
+        )
+
+
+def test_create_implementation_import_error_is_wrapped(monkeypatch: pytest.MonkeyPatch) -> None:
+    original_import = builtins.__import__
+
+    def _raising_import(name, *args, **kwargs):
+        if name == "src.services.screenshot_capture.x11_capture":
+            raise ImportError("missing module")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", _raising_import)
+
+    with pytest.raises(ScreenshotCaptureError, match="Failed to import screenshot capture implementation"):
+        ScreenshotCaptureFactory._create_implementation(
+            tool=ScreenshotTool.SCROT,
+            desktop_type=DesktopType.X11,
+            temp_manager=object(),
+            image_format="png",
+            quality=90,
+        )

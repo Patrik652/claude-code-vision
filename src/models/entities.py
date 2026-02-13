@@ -8,7 +8,7 @@ All entities are implemented as dataclasses for simplicity and immutability.
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, List
+from typing import List, Optional, Tuple
 from uuid import UUID
 
 
@@ -62,7 +62,7 @@ class Screenshot:
     format: str  # 'jpeg' | 'png' | 'webp'
     original_size_bytes: int
     optimized_size_bytes: int
-    resolution: tuple[int, int]  # (width, height)
+    resolution: Tuple[int, int]  # (width, height)
     source_monitor: int
     capture_method: str  # 'scrot' | 'grim' | 'import'
     privacy_zones_applied: bool
