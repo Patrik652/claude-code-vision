@@ -161,6 +161,7 @@ privacy:
 - 🏗️ **[Implementation Plan](specs/002-claude-code-vision/plan.md)** - Technical architecture
 - 📊 **[Data Model](specs/002-claude-code-vision/data-model.md)** - Entity definitions
 - 🔌 **[API Contracts](specs/002-claude-code-vision/contracts/)** - Interface specifications
+- 📝 **[Changelog](CHANGELOG.md)** - Recent updates and release notes
 
 ## Architecture
 
