@@ -1,288 +1,217 @@
-"""
-Contract tests for IClaudeAPIClient interface.
+"""Executable contract tests for IClaudeAPIClient using AnthropicAPIClient."""
 
-Verifies that all implementations of IClaudeAPIClient adhere to the contract.
-These tests are run against each concrete implementation to ensure consistency.
-"""
+from __future__ import annotations
+
+import json
+from datetime import UTC, datetime
+from pathlib import Path
+from types import SimpleNamespace
+from uuid import uuid4
 
 import pytest
-from pathlib import Path
-from uuid import uuid4
-from datetime import datetime
+from PIL import Image
 
 from src.interfaces.screenshot_service import IClaudeAPIClient
+from src.lib.exceptions import APIError, AuthenticationError, OAuthConfigNotFoundError, PayloadTooLargeError
 from src.models.entities import Screenshot
-from src.lib.exceptions import (
-    AuthenticationError,
-    APIError,
-    PayloadTooLargeError,
-    OAuthConfigNotFoundError
-)
+from src.services.claude_api_client import AnthropicAPIClient
 
 
-class TestIClaudeAPIClientContract:
-    """
-    Contract test suite for IClaudeAPIClient interface.
-
-    All implementations of IClaudeAPIClient MUST pass these tests.
-    """
-
-    @pytest.fixture
-    def client_implementation(self):
-        """
-        Override this fixture in concrete test classes to provide the implementation.
-
-        Example:
-            @pytest.fixture
-            def client_implementation(self):
-                return AnthropicAPIClient()
-        """
-        pytest.skip("Must be implemented by concrete test class")
-
-    @pytest.fixture
-    def sample_screenshot(self, tmp_path):
-        """
-        Create a sample Screenshot object for testing.
-
-        This fixture should be overridden in concrete tests to provide a real image file.
-        """
-        pytest.skip("Must be implemented by concrete test class to provide real image")
-
-    def test_interface_inheritance(self, client_implementation):
-        """Test that implementation inherits from IClaudeAPIClient."""
-        assert isinstance(client_implementation, IClaudeAPIClient)
-
-    def test_send_multimodal_prompt_returns_string(self, client_implementation, sample_screenshot):
-        """Test that send_multimodal_prompt() returns a string response."""
-        text = "What do you see in this image?"
-
-        response = client_implementation.send_multimodal_prompt(text, sample_screenshot)
-
-        assert isinstance(response, str)
-        assert len(response) > 0
-
-    def test_send_multimodal_prompt_with_empty_text(self, client_implementation, sample_screenshot):
-        """Test that send_multimodal_prompt() handles empty text prompt."""
-        # Should still work - image-only analysis
-        response = client_implementation.send_multimodal_prompt("", sample_screenshot)
-
-        assert isinstance(response, str)
-        # Response might be empty or contain a default message
-
-    def test_send_multimodal_prompt_with_long_text(self, client_implementation, sample_screenshot):
-        """Test send_multimodal_prompt() with long text prompt."""
-        long_text = "Analyze this screenshot in detail. " * 100  # Long prompt
-
-        response = client_implementation.send_multimodal_prompt(long_text, sample_screenshot)
-
-        assert isinstance(response, str)
-
-    def test_send_multimodal_prompt_validates_screenshot_exists(self, client_implementation, tmp_path):
-        """Test that send_multimodal_prompt() validates screenshot file exists."""
-        # Create screenshot with non-existent file
-        invalid_screenshot = Screenshot(
-            id=uuid4(),
-            timestamp=datetime.now(),
-            file_path=tmp_path / "nonexistent.jpg",
-            format="jpeg",
-            original_size_bytes=0,
-            optimized_size_bytes=0,
-            resolution=(800, 600),
-            source_monitor=0,
-            capture_method="test",
-            privacy_zones_applied=False
-        )
-
-        with pytest.raises((APIError, FileNotFoundError)):
-            client_implementation.send_multimodal_prompt("Test", invalid_screenshot)
-
-    def test_validate_oauth_token_returns_bool(self, client_implementation):
-        """Test that validate_oauth_token() returns boolean."""
-        result = client_implementation.validate_oauth_token()
-
-        assert isinstance(result, bool)
-
-    def test_validate_oauth_token_with_valid_token(self, client_implementation):
-        """Test validate_oauth_token() with valid token."""
-        # This test assumes a valid token is configured
-        # May need to be mocked or skipped in CI
-        try:
-            result = client_implementation.validate_oauth_token()
-            # If we get here without error, result should be True
-            assert isinstance(result, bool)
-        except OAuthConfigNotFoundError:
-            pytest.skip("OAuth config not found - expected in test environment")
-
-    def test_validate_oauth_token_missing_config_raises_error(self, client_implementation, monkeypatch):
-        """Test that validate_oauth_token() raises error when config missing."""
-        # Mock missing config file
-        monkeypatch.setenv('HOME', '/nonexistent')
-
-        with pytest.raises(OAuthConfigNotFoundError):
-            client_implementation.validate_oauth_token()
-
-    def test_refresh_oauth_token_executes_without_error(self, client_implementation):
-        """Test that refresh_oauth_token() can be called."""
-        # This test may need to be mocked as it requires valid credentials
-        try:
-            client_implementation.refresh_oauth_token()
-            # If we get here, refresh succeeded
-        except AuthenticationError:
-            # Expected if no valid refresh token available
-            pytest.skip("No valid refresh token - expected in test environment")
-        except OAuthConfigNotFoundError:
-            # Expected if config file missing
-            pytest.skip("OAuth config not found - expected in test environment")
+@pytest.fixture()
+def sample_screenshot(tmp_path: Path) -> Screenshot:
+    img_path = tmp_path / "sample.png"
+    Image.new("RGB", (120, 80), color="white").save(img_path)
+    size = img_path.stat().st_size
+    return Screenshot(
+        id=uuid4(),
+        timestamp=datetime.now(tz=UTC),
+        file_path=img_path,
+        format="png",
+        original_size_bytes=size,
+        optimized_size_bytes=size,
+        resolution=(120, 80),
+        source_monitor=0,
+        capture_method="test",
+        privacy_zones_applied=False,
+    )
 
 
-class TestIClaudeAPIClientErrorHandling:
-    """
-    Contract tests for error handling in IClaudeAPIClient implementations.
-    """
-
-    @pytest.fixture
-    def client_implementation(self):
-        """Override in concrete test classes."""
-        pytest.skip("Must be implemented by concrete test class")
-
-    @pytest.fixture
-    def sample_screenshot(self, tmp_path):
-        """Override in concrete test classes."""
-        pytest.skip("Must be implemented by concrete test class")
-
-    def test_send_multimodal_prompt_invalid_token_raises_auth_error(self, client_implementation, sample_screenshot, monkeypatch):
-        """Test that invalid OAuth token raises AuthenticationError."""
-        # Mock invalid token scenario
-        # Implementation-specific: may need to mock token reading
-        # with pytest.raises(AuthenticationError):
-        #     client_implementation.send_multimodal_prompt("Test", sample_screenshot)
-        pytest.skip("Implementation-specific test - requires mocking")
-
-    def test_send_multimodal_prompt_network_error_raises_api_error(self, client_implementation, sample_screenshot):
-        """Test that network errors raise APIError."""
-        # Mock network failure scenario
-        # Implementation-specific: may need to mock requests
-        pytest.skip("Implementation-specific test - requires mocking")
-
-    def test_send_multimodal_prompt_too_large_raises_payload_error(self, client_implementation, tmp_path):
-        """Test that oversized payload raises PayloadTooLargeError."""
-        # Create a very large screenshot
-        large_screenshot = Screenshot(
-            id=uuid4(),
-            timestamp=datetime.now(),
-            file_path=tmp_path / "large.jpg",
-            format="jpeg",
-            original_size_bytes=50 * 1024 * 1024,  # 50 MB
-            optimized_size_bytes=50 * 1024 * 1024,
-            resolution=(10000, 10000),
-            source_monitor=0,
-            capture_method="test",
-            privacy_zones_applied=False
-        )
-
-        # Note: This test requires actual large file creation
-        # May need to be implemented in concrete test class
-        pytest.skip("Requires actual large file - implement in concrete class")
-
-    def test_refresh_token_invalid_credentials_raises_auth_error(self, client_implementation):
-        """Test that refresh with invalid credentials raises AuthenticationError."""
-        # Mock invalid refresh token scenario
-        pytest.skip("Implementation-specific test - requires mocking")
+@pytest.fixture()
+def client_implementation() -> AnthropicAPIClient:
+    return AnthropicAPIClient(api_key="sk-test")
 
 
-class TestIClaudeAPIClientIntegration:
-    """
-    Integration-style contract tests that verify end-to-end functionality.
-
-    These tests may be slow and should be marked as such.
-    """
-
-    @pytest.fixture
-    def client_implementation(self):
-        """Override in concrete test classes."""
-        pytest.skip("Must be implemented by concrete test class")
-
-    @pytest.fixture
-    def sample_screenshot(self, tmp_path):
-        """Override in concrete test classes."""
-        pytest.skip("Must be implemented by concrete test class")
-
-    @pytest.mark.slow
-    @pytest.mark.integration
-    def test_full_multimodal_workflow(self, client_implementation, sample_screenshot):
-        """
-        Test complete workflow: validate token, send prompt, receive response.
-
-        This is an integration test that requires:
-        - Valid OAuth configuration
-        - Network connectivity
-        - Valid API key
-        """
-        try:
-            # Step 1: Validate token
-            is_valid = client_implementation.validate_oauth_token()
-            if not is_valid:
-                pytest.skip("Token not valid - skipping integration test")
-
-            # Step 2: Send multimodal prompt
-            response = client_implementation.send_multimodal_prompt(
-                "Describe this image briefly.",
-                sample_screenshot
-            )
-
-            # Step 3: Verify response
-            assert isinstance(response, str)
-            assert len(response) > 0
-
-        except (OAuthConfigNotFoundError, AuthenticationError):
-            pytest.skip("OAuth not configured - expected in test environment")
-        except APIError as e:
-            pytest.fail(f"API error during integration test: {e}")
-
-    @pytest.mark.slow
-    @pytest.mark.integration
-    def test_token_refresh_workflow(self, client_implementation):
-        """
-        Test token refresh workflow.
-
-        This is an integration test that requires valid refresh token.
-        """
-        try:
-            # Attempt to refresh token
-            client_implementation.refresh_oauth_token()
-
-            # Verify token is now valid
-            is_valid = client_implementation.validate_oauth_token()
-            assert is_valid
-
-        except (OAuthConfigNotFoundError, AuthenticationError):
-            pytest.skip("OAuth not configured - expected in test environment")
+def test_interface_inheritance(client_implementation: AnthropicAPIClient) -> None:
+    assert isinstance(client_implementation, IClaudeAPIClient)
 
 
-# NOTE: Concrete test classes will inherit from these and provide actual implementations
-# Example:
-# class TestAnthropicAPIClient(TestIClaudeAPIClientContract):
-#     @pytest.fixture
-#     def client_implementation(self):
-#         return AnthropicAPIClient()
-#
-#     @pytest.fixture
-#     def sample_screenshot(self, tmp_path):
-#         # Create a real test image
-#         from PIL import Image
-#         img = Image.new('RGB', (800, 600), color='blue')
-#         img_path = tmp_path / "test.jpg"
-#         img.save(img_path, quality=85)
-#
-#         return Screenshot(
-#             id=uuid4(),
-#             timestamp=datetime.now(),
-#             file_path=img_path,
-#             format="jpeg",
-#             original_size_bytes=img_path.stat().st_size,
-#             optimized_size_bytes=img_path.stat().st_size,
-#             resolution=(800, 600),
-#             source_monitor=0,
-#             capture_method="test",
-#             privacy_zones_applied=False
-#         )
+def test_send_multimodal_prompt_returns_string(
+    client_implementation: AnthropicAPIClient,
+    sample_screenshot: Screenshot,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _post_ok(*_args, **_kwargs):
+        return SimpleNamespace(status_code=200, text="ok", json=lambda: {"content": [{"text": "ok"}]})
+
+    monkeypatch.setattr(
+        "src.services.claude_api_client.requests.post",
+        _post_ok,
+    )
+
+    response = client_implementation.send_multimodal_prompt("hello", sample_screenshot)
+
+    assert response == "ok"
+
+
+def test_send_multimodal_prompt_with_empty_text(
+    client_implementation: AnthropicAPIClient,
+    sample_screenshot: Screenshot,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _post_empty(*_args, **_kwargs):
+        return SimpleNamespace(status_code=200, text="ok", json=lambda: {"content": [{"text": "empty-ok"}]})
+
+    monkeypatch.setattr(
+        "src.services.claude_api_client.requests.post",
+        _post_empty,
+    )
+
+    assert client_implementation.send_multimodal_prompt("", sample_screenshot) == "empty-ok"
+
+
+def test_send_multimodal_prompt_with_long_text(
+    client_implementation: AnthropicAPIClient,
+    sample_screenshot: Screenshot,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _post_long(*_args, **_kwargs):
+        return SimpleNamespace(status_code=200, text="ok", json=lambda: {"content": [{"text": "long-ok"}]})
+
+    monkeypatch.setattr(
+        "src.services.claude_api_client.requests.post",
+        _post_long,
+    )
+
+    response = client_implementation.send_multimodal_prompt("Analyze " * 150, sample_screenshot)
+    assert isinstance(response, str)
+
+
+def test_send_multimodal_prompt_validates_screenshot_exists(client_implementation: AnthropicAPIClient) -> None:
+    missing = Screenshot(
+        id=uuid4(),
+        timestamp=datetime.now(tz=UTC),
+        file_path=Path("/definitely/missing.png"),
+        format="png",
+        original_size_bytes=0,
+        optimized_size_bytes=0,
+        resolution=(10, 10),
+        source_monitor=0,
+        capture_method="test",
+        privacy_zones_applied=False,
+    )
+
+    with pytest.raises(APIError, match="Screenshot file not found"):
+        client_implementation.send_multimodal_prompt("x", missing)
+
+
+def test_validate_oauth_token_returns_bool(client_implementation: AnthropicAPIClient) -> None:
+    assert client_implementation.validate_oauth_token() is True
+
+
+def test_validate_oauth_token_missing_config_raises_error(tmp_path: Path) -> None:
+    client = AnthropicAPIClient(oauth_token_path=str(tmp_path / "missing.json"))
+
+    with pytest.raises(OAuthConfigNotFoundError):
+        client.validate_oauth_token()
+
+
+def test_refresh_oauth_token_executes_without_error(client_implementation: AnthropicAPIClient) -> None:
+    client_implementation.refresh_oauth_token()
+
+
+def test_send_multimodal_prompt_invalid_token_raises_auth_error(
+    client_implementation: AnthropicAPIClient,
+    sample_screenshot: Screenshot,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _post_unauthorized(*_args, **_kwargs):
+        return SimpleNamespace(status_code=401, text="bad", json=lambda: {})
+
+    monkeypatch.setattr(
+        "src.services.claude_api_client.requests.post",
+        _post_unauthorized,
+    )
+
+    with pytest.raises(AuthenticationError):
+        client_implementation.send_multimodal_prompt("x", sample_screenshot)
+
+
+def test_send_multimodal_prompt_network_error_raises_api_error(
+    client_implementation: AnthropicAPIClient,
+    sample_screenshot: Screenshot,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import requests
+
+    def _raise(*_a, **_k):
+        raise requests.exceptions.ConnectionError()
+
+    monkeypatch.setattr("src.services.claude_api_client.requests.post", _raise)
+
+    with pytest.raises(APIError, match="Failed to connect"):
+        client_implementation.send_multimodal_prompt("x", sample_screenshot)
+
+
+def test_send_multimodal_prompt_too_large_raises_payload_error(
+    client_implementation: AnthropicAPIClient,
+    sample_screenshot: Screenshot,
+) -> None:
+    oversized = Screenshot(
+        id=sample_screenshot.id,
+        timestamp=sample_screenshot.timestamp,
+        file_path=sample_screenshot.file_path,
+        format=sample_screenshot.format,
+        original_size_bytes=sample_screenshot.original_size_bytes,
+        optimized_size_bytes=10 * 1024 * 1024,
+        resolution=sample_screenshot.resolution,
+        source_monitor=sample_screenshot.source_monitor,
+        capture_method=sample_screenshot.capture_method,
+        privacy_zones_applied=False,
+    )
+
+    with pytest.raises(PayloadTooLargeError):
+        client_implementation.send_multimodal_prompt("x", oversized)
+
+
+def test_refresh_token_invalid_credentials_raises_auth_error(tmp_path: Path) -> None:
+    cfg = tmp_path / "oauth.json"
+    cfg.write_text(json.dumps({}), encoding="utf-8")
+    client = AnthropicAPIClient(oauth_token_path=str(cfg))
+
+    with pytest.raises(AuthenticationError):
+        client.refresh_oauth_token()
+
+
+def test_full_multimodal_workflow(
+    client_implementation: AnthropicAPIClient,
+    sample_screenshot: Screenshot,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _post_done(*_args, **_kwargs):
+        return SimpleNamespace(status_code=200, text="ok", json=lambda: {"content": [{"text": "done"}]})
+
+    monkeypatch.setattr(
+        "src.services.claude_api_client.requests.post",
+        _post_done,
+    )
+
+    assert client_implementation.validate_oauth_token() is True
+    response = client_implementation.send_multimodal_prompt("Describe", sample_screenshot)
+    assert response == "done"
+
+
+def test_token_refresh_workflow_with_missing_oauth_config(tmp_path: Path) -> None:
+    client = AnthropicAPIClient(oauth_token_path=str(tmp_path / "missing.json"))
+
+    with pytest.raises(OAuthConfigNotFoundError):
+        client.refresh_oauth_token()
